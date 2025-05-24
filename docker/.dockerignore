@@ -1,0 +1,15 @@
+# --- docker/.dockerignore ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+Dockerfile.*
+docker-compose.*
+langfuse_exports/

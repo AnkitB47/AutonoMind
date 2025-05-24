@@ -1,0 +1,17 @@
+# --- requirements.txt ---
+streamlit
+fastapi
+uvicorn
+langchain
+langgraph
+pinecone-client
+openai
+tiktoken
+prometheus-fastapi-instrumentator
+langfuse
+python-dotenv
+pymupdf
+faiss-cpu
+sentence-transformers
+transformers
+whisper

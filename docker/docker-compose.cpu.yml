@@ -1,0 +1,14 @@
+# --- docker/docker-compose.yml ---
+version: '3.9'
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cpu
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../.env
+    volumes:
+      - ../:/app
+    restart: always

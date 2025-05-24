@@ -1,0 +1,60 @@
+# === Python Cache ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.sqlite3
+
+# === Environment & Secrets ===
+.env
+.env.*
+!.env.example
+
+# === OS & IDE files ===
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# === Logs & Runtime Files ===
+*.log
+*.pid
+*.bak
+*.tmp
+nohup.out
+
+# === Docker ===
+*.tar
+docker-compose.override.yml
+docker/data/
+docker/cache/
+
+# === Streamlit ===
+.streamlit/
+.stcache/
+.stcache/*
+
+# === Whisper & Audio Files ===
+*.wav
+*.mp3
+*.webm
+*.m4a
+tmp_*
+
+# === FAISS Vector DB ===
+faiss_db/
+*.index
+
+# === LangChain / Langfuse Artifacts ===
+langchain_logs/
+langfuse_exports/
+langfuse.db
+
+# === Model Downloads ===
+models/
+checkpoints/
+cache/
+*.pt
+*.bin
+*.ckpt

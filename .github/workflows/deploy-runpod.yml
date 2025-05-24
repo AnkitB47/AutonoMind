@@ -1,0 +1,52 @@
+# --- .github/workflows/deploy-runpod.yml ---
+name: 🚀 CI/CD - Trigger RunPod GPU Inference Agent
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-gpu:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Lint Python Code
+        run: |
+          pip install flake8
+          flake8 . --exclude=.venv,docker
+
+      - name: Run Basic Unit Tests
+        run: |
+          pip install -r requirements.txt
+          python3 -m unittest discover tests
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and Push Docker Image to GHCR
+        run: |
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
+
+      - name: Trigger RunPod GPU Agent
+        run: |
+          curl -X POST https://api.runpod.io/launch \
+            -H 'Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}' \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "image": "ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest",
+              "gpuCount": 1,
+              "volume": true,
+              "env": {
+                "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
+                "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+              }
+            }'

@@ -1,0 +1,26 @@
+# --- docker/docker-compose.gpu.yml ---
+version: '3.9'
+services:
+  autonomind:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gpu
+      labels:
+        - "maintainer=Ankit Bhardwaj"
+        - "project=AutonoMindAI"
+    ports:
+      - "8080:8080"
+    runtime: nvidia
+    environment:
+      - USE_GPU=True
+    env_file:
+      - ../.env
+    volumes:
+      - ../:/app
+      - ~/.cache:/root/.cache
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
