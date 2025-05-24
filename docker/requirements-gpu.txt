@@ -1,0 +1,30 @@
+# --- requirements-gpu.txt ---
+# Core
+streamlit
+fastapi
+uvicorn
+python-dotenv
+orjson
+
+# LangChain + LangGraph + Tracing
+langchain
+langgraph
+langfuse
+prometheus-fastapi-instrumentator
+
+# RAG / Embeddings
+pinecone-client
+openai
+tiktoken
+faiss-cpu
+sentence-transformers
+transformers
+
+# Modalities
+pymupdf              # PDF
+whisper              # Audio
+google-generativeai  # Image (Gemini)
+
+# Utilities
+requests
+ipython

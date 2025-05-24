@@ -15,3 +15,8 @@ faiss-cpu
 sentence-transformers
 transformers
 whisper
+requests
+google-generativeai
+ipython
+orjson 
+

@@ -1,25 +1,33 @@
 # --- docker/Dockerfile.gpu ---
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
-# System setup
+# Avoid interaction during apt installs
 ENV DEBIAN_FRONTEND=noninteractive
+
+# === System Dependencies ===
 RUN apt-get update && apt-get install -y \
-    git wget curl python3 python3-pip ffmpeg libsndfile1 libgl1 \
+    git wget curl python3 python3-pip ffmpeg libsndfile1 libgl1 jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Set workdir
+# === Set Work Directory ===
 WORKDIR /app
 
-# Python packages
-COPY requirements.txt .
+# === Install Python Dependencies ===
+COPY requirements-gpu.txt .
 RUN pip3 install --upgrade pip && \
-    pip3 install --no-cache-dir -r requirements.txt
+    pip3 install --no-cache-dir -r requirements-gpu.txt
 
-# Copy source
+# === Install PyTorch GPU (CU118) ===
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# === Copy Source ===
 COPY . .
 
-# Expose default Streamlit port
+# === Environment ===
+ENV USE_GPU=True
+
+# === Port ===
 EXPOSE 8080
 
-# Run app with GPU support
+# === Entrypoint ===
 CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.enableCORS=false"]
