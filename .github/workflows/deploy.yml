@@ -34,8 +34,9 @@ jobs:
       - name: 🔐 Authenticate with Fly.io
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-        run: flyctl auth login --access-token "$FLY_API_TOKEN"
-
-      - name: 🚀 Deploy Docker Image to Fly.io (no cache)
         run: |
-          flyctl deploy --dockerfile docker/Dockerfile.cpu --remote-only --no-cache -a autonomind
+          flyctl auth login --access-token "$FLY_API_TOKEN"
+
+      - name: 🚀 Deploy Docker Image to Fly.io (via fly.cpu.toml)
+        run: |
+          flyctl deploy -c fly.cpu.toml --remote-only --no-cache
