@@ -26,24 +26,16 @@ jobs:
 
       - name: 🧱 Build & Push GPU Docker Image
         run: |
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch RunPod GPU Instance
+      - name: 🚀 Launch RunPod GPU Instance from Template
         id: launch
         run: |
-          response=$(curl -s -X POST https://api.runpod.io/launch \
+          response=$(curl -s -X POST https://api.runpod.io/v2/uhqe2m9jvy/run \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "image": "ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest",
-              "gpuCount": 1,
-              "volume": true,
-              "env": {
-                "OPENAI_API_KEY": "'"${{ secrets.OPENAI_API_KEY }}"'",
-                "GEMINI_API_KEY": "'"${{ secrets.GEMINI_API_KEY }}"'"
-              }
-            }')
+            -d '{}')
 
           echo "Launch response: $response"
           pod_id=$(echo "$response" | jq -r '.id')
