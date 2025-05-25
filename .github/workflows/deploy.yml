@@ -38,4 +38,4 @@ jobs:
 
       - name: 🚀 Deploy Docker Image to Fly.io (no cache)
         run: |
-          flyctl deploy --dockerfile docker/Dockerfile.cpu --remote-only --no-cache
+          flyctl deploy --dockerfile docker/Dockerfile.cpu --remote-only --no-cache -a autonomind
