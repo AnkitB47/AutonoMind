@@ -1,3 +1,4 @@
+# --- .github/workflows/deploy-runpod.yml ---
 name: 🚀 CI/CD - Deploy GPU Agent to RunPod
 
 on:
@@ -39,37 +40,33 @@ jobs:
               "gpuCount": 1,
               "volume": true,
               "env": {
-                "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
-                "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}"
+                "OPENAI_API_KEY": "'"${{ secrets.OPENAI_API_KEY }}"'",
+                "GEMINI_API_KEY": "'"${{ secrets.GEMINI_API_KEY }}"'"
               }
             }')
 
-          echo "$response" > runpod_response.json
-          echo "RUNPOD_POD_ID=$(jq -r '.id' runpod_response.json)" >> $GITHUB_ENV
+          echo "Launch response: $response"
+          pod_id=$(echo "$response" | jq -r '.id')
+          echo "RUNPOD_POD_ID=$pod_id" >> $GITHUB_ENV
 
       - name: 🔄 Poll for RunPod Readiness & Store Endpoint
         run: |
           for i in {1..30}; do
-            status=$(curl -s -X POST https://api.runpod.io/status \
+            status_response=$(curl -s -X POST https://api.runpod.io/status \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
-              -d "{\"id\": \"${{ env.RUNPOD_POD_ID }}\"}" | jq -r '.status')
-
+              -d "{\"id\": \"${{ env.RUNPOD_POD_ID }}\"}")
+            
+            status=$(echo "$status_response" | jq -r '.status')
             echo "⏳ Pod status: $status"
 
             if [ "$status" = "RUNNING" ]; then
-              url=$(curl -s -X POST https://api.runpod.io/status \
-                -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
-                -H "Content-Type: application/json" \
-                -d "{\"id\": \"${{ env.RUNPOD_POD_ID }}\"}" | jq -r '.endpoint')
-
+              url=$(echo "$status_response" | jq -r '.endpoint')
               echo "✅ Live RunPod URL: $url"
               echo "RUNPOD_URL=$url" >> $GITHUB_ENV
-
-              # Save as GitHub secret so your app can access it
               gh secret set RUNPOD_URL -b"$url"
-
               break
             fi
+
             sleep 10
           done
