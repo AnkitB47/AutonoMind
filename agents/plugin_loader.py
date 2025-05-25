@@ -1,7 +1,6 @@
 # --- agents/plugin_loader.py ---
 import importlib.util
 import os
-from langchain.schema.runnable import RunnableLambda
 
 PLUGIN_DIR = "agents/plugins"
 

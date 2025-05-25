@@ -4,8 +4,11 @@ from langchain.embeddings import OpenAIEmbeddings
 import pinecone
 import os
 
-pinecone.init(api_key=os.getenv("PINECONE_API_KEY"), environment="gcp-starter")
-index = pinecone.Index("autono-index")
+pinecone.init(api_key=os.getenv("PINECONE_API_KEY"))
+index = pinecone.Index(
+    host=os.getenv("PINECONE_INDEX_HOST"),
+    index_name=os.getenv("PINECONE_INDEX_NAME")
+)
 
 
 def search_pinecone(query):
