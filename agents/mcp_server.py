@@ -3,6 +3,7 @@ from agents import search_agent, rag_agent, translate_agent, plugin_loader
 from langchain.schema.runnable import RunnableLambda
 from langgraph.graph import StateGraph
 
+
 def route_with_langgraph(query: str, lang: str = "en"):
     graph = StateGraph()
 

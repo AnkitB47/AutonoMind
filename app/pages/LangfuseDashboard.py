@@ -11,6 +11,7 @@ This is a placeholder. To embed a Langfuse dashboard:
 - Paste into iframe below
 """)
 
-langfuse_dashboard_url = st.text_input("🔗 Paste Langfuse iframe URL:", "https://cloud.langfuse.com/public/share/...iframe")
+langfuse_dashboard_url = st.text_input(
+    "🔗 Paste Langfuse iframe URL:", "https://cloud.langfuse.com/public/share/...iframe")
 
 st.components.v1.iframe(src=langfuse_dashboard_url, height=800, scrolling=True)

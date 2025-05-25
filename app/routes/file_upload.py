@@ -4,6 +4,7 @@ from agents import rag_agent
 
 router = APIRouter(prefix="/file", tags=["file"])
 
+
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     result = await rag_agent.process_file(file)

@@ -30,3 +30,4 @@ requests
 ipython
 black
 flake8
+autopep8

@@ -21,3 +21,4 @@ ipython
 orjson
 black
 flake8
+autopep8

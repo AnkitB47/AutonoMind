@@ -7,6 +7,7 @@ from langgraph_runner.node_wrappers import RemoteWhisperNode, RemoteImageNode
 router = APIRouter(prefix="/graph", tags=["langgraph"])
 RUNPOD_URL = os.getenv("RUNPOD_URL", "")  # Replace or dynamically fetch
 
+
 @router.post("/run")
 async def run_graph(payload: dict):
     input_text = payload.get("input", "")
@@ -25,7 +26,8 @@ async def run_graph(payload: dict):
 
     else:
         from langchain_core.runnables import RunnableLambda
-        builder.add_node("echo", RunnableLambda(lambda x: {"text": x.get("input")}))
+        builder.add_node("echo", RunnableLambda(
+            lambda x: {"text": x.get("input")}))
         builder.set_entry_point("echo")
 
     graph = builder.compile()

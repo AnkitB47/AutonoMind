@@ -15,7 +15,7 @@ WORKDIR /app
 # === Install Python Dependencies ===
 COPY requirements-gpu.txt .
 RUN pip3 install --upgrade pip && \
-    pip3 install --no-cache-dir -r docker/requirements-gpu.txt
+    pip3 install --no-cache-dir -r requirements-gpu.txt
 
 # === Install PyTorch GPU (CU118) ===
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
