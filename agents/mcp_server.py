@@ -12,6 +12,7 @@ lf = langfuse.Langfuse(
     host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 )
 
+
 def route_with_langgraph(query: str, lang: str = "en"):
     trace = lf.trace(name="AutonoMind Agentic Query")
     trace.update(input={"query": query, "lang": lang})

@@ -1,0 +1,4 @@
+# .flake8
+[flake8]
+exclude = .venv,docker
+max-line-length = 150
