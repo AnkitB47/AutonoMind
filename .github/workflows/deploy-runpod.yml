@@ -25,8 +25,8 @@ jobs:
 
       - name: 🧱 Build & Push GPU Docker Image
         run: |
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
       - name: 🛠 Install runpodctl CLI
         run: |
@@ -44,7 +44,7 @@ jobs:
             --name "$UNIQUE_POD_NAME" \
             --gpuType "NVIDIA GeForce RTX 3090" \
             --gpuCount 1 \
-            --imageName "ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest" \
+            --imageName "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest" \
             --ports "8080/http" \
             --volumePath "/runpod" \
             --containerDiskSize 20 \
