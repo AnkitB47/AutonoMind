@@ -1,4 +1,4 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (runpodctl)
 
 on:
   workflow_dispatch:
@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📦 Checkout Repository
+      - name: 📦 Checkout Repo
         uses: actions/checkout@v3
 
-      - name: 🐳 Set up Docker Buildx
+      - name: 🛠 Set up Docker
         uses: docker/setup-buildx-action@v2
 
       - name: 🔐 Login to GHCR
@@ -34,14 +34,24 @@ jobs:
           chmod +x runpodctl
           sudo mv runpodctl /usr/bin/runpodctl
 
-      - name: 🔐 Configure runpodctl with API key
+      - name: 🔐 Authenticate runpodctl
         run: runpodctl config --apiKey ${{ secrets.RUNPOD_API_KEY }}
 
-      - name: 🚀 Launch Pod from Template
+      - name: 🚀 Launch GPU Pod from Template
         run: |
-          runpodctl create pod --templateId uhqe2m9jvy --name github-actions-pod
+          runpodctl create pod \
+            --templateId uhqe2m9jvy \
+            --name autonomind-gpu \
+            --gpuType NVIDIA_GEFORCE_RTX_3070 \
+            --gpuCount 1 \
+            --imageName ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest \
+            --ports 8080/http \
+            --volumePath /data \
+            --volumeSize 5 \
+            --mem 24 \
+            --vcpu 8
 
-      - name: 🔄 Wait for Pod to be Ready & Capture URL
+      - name: 🔄 Wait for Pod to Start & Save URL
         id: poll
         run: |
           POD_ID=$(runpodctl get pods --name github-actions-pod --output json | jq -r '.[0].id')
@@ -52,19 +62,17 @@ jobs:
 
             if [ "$STATUS" = "RUNNING" ]; then
               PUBLIC_IP=$(runpodctl get pod "$POD_ID" --output json | jq -r '.publicIp')
-              if [[ -n "$PUBLIC_IP" && "$PUBLIC_IP" != "null" ]]; then
-                echo "✅ Pod IP: $PUBLIC_IP"
+              if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
+                echo "✅ GPU Pod is live: http://$PUBLIC_IP:8080"
                 echo "POD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
                 break
               fi
             fi
-
             sleep 10
           done
 
       - name: 🔒 Store Pod URL as GitHub Secret
-        run: |
-          gh secret set RUNPOD_URL --body "$POD_URL"
+        run: gh secret set RUNPOD_URL --body "$POD_URL"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           POD_URL: ${{ env.POD_URL }}
