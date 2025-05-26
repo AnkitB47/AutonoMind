@@ -67,18 +67,20 @@ jobs:
           echo "Polling for Pod ID and Public IP..."
 
           for i in {1..30}; do
-            POD_JSON=$(runpodctl get pods --output json)
+            POD_JSON=$(runpodctl get pod --output json)
             POD_ID=$(echo "$POD_JSON" | jq -r --arg name "$POD_NAME" '.[] | select(.name==$name) | .id')
 
-            if [ -n "$POD_ID" ]; then
-              STATUS=$(runpodctl get pod "$POD_ID" --output json | jq -r '.status')
+            if [ -n "$POD_ID" ] && [ "$POD_ID" != "null" ]; then
+              STATUS_JSON=$(runpodctl get pod "$POD_ID" --output json)
+              STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
               echo "⏳ Pod status: $STATUS"
 
               if [ "$STATUS" = "RUNNING" ]; then
-                PUBLIC_IP=$(runpodctl get pod "$POD_ID" --output json | jq -r '.publicIp')
+                PUBLIC_IP=$(echo "$STATUS_JSON" | jq -r '.publicIp')
                 if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
                   echo "✅ Pod is live: http://$PUBLIC_IP:8080"
                   echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
+                  export POD_URL="http://$PUBLIC_IP:8080"
                   break
                 fi
               fi
