@@ -26,35 +26,29 @@ jobs:
 
       - name: 🧱 Build & Push GPU Docker Image
         run: |
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch GPU Pod via REST API
-        id: launch_pod
+      - name: 🚀 Launch GPU Pod from Template
         run: |
-          echo "Launching pod from template..."
-
-          POD_NAME="github-actions-pod-${{ github.run_id }}"
-
-          response=$(curl -s -X POST https://api.runpod.io/v1/pods \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
-            -d '{
-              "templateId": "uhqe2m9jvy",
-              "name": "'"$POD_NAME"'"
-            }')
-
-          echo "Launch response: $response"
-          POD_ID=$(echo "$response" | jq -r '.id')
-
-          if [ "$POD_ID" = "null" ] || [ -z "$POD_ID" ]; then
-            echo "❌ Failed to launch pod."
-            exit 1
-          fi
-
-          echo "✅ Pod ID: $POD_ID"
+          UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
+          echo "Launching Pod: $UNIQUE_POD_NAME"
+          POD_ID=$(runpodctl create pod \
+            --templateId uhqe2m9jvy \
+            --name "$UNIQUE_POD_NAME" \
+            --gpuType "NVIDIA GeForce RTX 3090" \
+            --gpuCount 1 \
+            --imageName "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest" \
+            --ports "8080/http" \
+            --volumePath "/runpod" \
+            --containerDiskSize 20 \
+            --volumeSize 1 \
+            --mem 30 \
+            --vcpu 8 \
+            --cost 0.22 | grep -oP '(?<=pod ")(.*?)(?=")')
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
-          echo "POD_NAME=$POD_NAME" >> $GITHUB_ENV
+          echo "✅ Pod ID: $POD_ID"
+
 
       - name: 🔄 Poll Pod Status via REST API
         id: poll_status
