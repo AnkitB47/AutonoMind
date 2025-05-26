@@ -28,28 +28,25 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch RunPod GPU Instance from Pod Template
+      - name: 🚀 Launch RunPod Pod from Template
         id: launch
         run: |
-          response=$(curl -s -X POST https://api.runpod.io/pod \
+          response=$(curl -s -X POST https://api.runpod.ai/v2/uhqe2m9jvy/run \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "templateId": "uhqe2m9jvy",
-              "name": "AutonoMind GPU Agent"
-            }')
+            -d '{}')
 
           echo "Launch response: $response"
-          pod_id=$(echo "$response" | jq -r '.podId')
+          pod_id=$(echo "$response" | jq -r '.id')
           echo "RUNPOD_POD_ID=$pod_id" >> $GITHUB_ENV
 
-      - name: 🔄 Poll for Pod Readiness & Store Endpoint
+      - name: 🔄 Poll for Pod Readiness & Capture Endpoint
         run: |
           for i in {1..30}; do
-            status_response=$(curl -s -X POST https://api.runpod.io/pod/status \
+            status_response=$(curl -s -X POST https://api.runpod.ai/v2/uhqe2m9jvy/status \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
-              -d "{\"podId\": \"${{ env.RUNPOD_POD_ID }}\"}")
+              -d "{\"id\": \"${{ env.RUNPOD_POD_ID }}\"}")
 
             status=$(echo "$status_response" | jq -r '.status')
             echo "⏳ Pod status: $status"
