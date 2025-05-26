@@ -35,7 +35,10 @@ jobs:
           sudo mv runpodctl /usr/bin/runpodctl
 
       - name: 🔐 Authenticate runpodctl
-        run: runpodctl config --apiKey ${{ secrets.RUNPOD_API_KEY }}
+        run: |
+          mkdir -p ~/.runpod
+          echo "apiKey: ${{ secrets.RUNPOD_API_KEY }}" > ~/.runpod/.runpod.yaml
+
 
       - name: 🚀 Launch GPU Pod from Template (Spot)
         env:
@@ -58,40 +61,35 @@ jobs:
             --vcpu 8 \
             --cost 0.22
 
-      - name: 🔄 Poll for Pod Readiness & Save Public IP
+      - name: 🔄 Wait for Pod to Start & Save URL
         id: poll
-        env:
-          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
         run: |
           POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "Polling for Pod ID and Public IP..."
 
-          POD_ID=$(runpodctl get pods --name "$POD_NAME" --output json | jq -r '.[0].id')
-
           for i in {1..30}; do
-            STATUS_JSON=$(runpodctl get pod "$POD_ID" --output json)
-            STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
-            echo "⏳ Pod status: $STATUS"
+            POD_JSON=$(runpodctl get pods)
+            POD_ID=$(echo "$POD_JSON" | jq -r --arg name "$POD_NAME" '.[] | select(.name==$name) | .id')
 
-            if [ "$STATUS" = "RUNNING" ]; then
-              PUBLIC_IP=$(echo "$STATUS_JSON" | jq -r '.publicIp')
-              if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
-                echo "✅ Pod is live: http://$PUBLIC_IP:8080"
-                echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
-                break
+            if [ -n "$POD_ID" ]; then
+              STATUS=$(runpodctl get pod "$POD_ID" | jq -r '.status')
+              echo "⏳ Pod status: $STATUS"
+
+              if [ "$STATUS" = "RUNNING" ]; then
+                PUBLIC_IP=$(runpodctl get pod "$POD_ID" | jq -r '.publicIp')
+                if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
+                  echo "✅ GPU Pod is live: http://$PUBLIC_IP:8080"
+                  echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
+                  break
+                fi
               fi
             fi
             sleep 10
           done
 
-          # ❌ Exit if pod failed to start
-          if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
-            echo "❌ Pod failed to start or no public IP available."
-            exit 1
-          fi
-
       - name: 🔒 Store Pod URL as GitHub Secret
-        run: gh secret set RUNPOD_URL --body "$POD_URL"
+        run: gh secret set RUNPOD_URL --body "$RUNPOD_URL"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          POD_URL: ${{ env.RUNPOD_URL }}
+          RUNPOD_URL: ${{ env.RUNPOD_URL }}
+
