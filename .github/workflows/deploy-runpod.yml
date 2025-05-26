@@ -33,6 +33,7 @@ jobs:
           wget -q https://github.com/Run-Pod/runpodctl/releases/download/v1.14.3/runpodctl-linux-amd64 -O runpodctl
           chmod +x runpodctl
           sudo mv runpodctl /usr/bin/runpodctl
+          mkdir -p ~/.runpod
           runpodctl config --apiKey ${{ secrets.RUNPOD_API_KEY }}
 
       - name: 🚀 Launch GPU Pod from Template (CLI)
@@ -52,15 +53,16 @@ jobs:
             --mem 30 \
             --vcpu 8 \
             --cost 0.22 | grep -oP '(?<=pod ")(.*?)(?=")')
-          echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
           echo "✅ Pod ID: $POD_ID"
+          echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
+          export RUNPOD_POD_ID=$POD_ID
 
       - name: 🔄 Poll Pod Status via REST API
         id: poll_status
         run: |
           echo "Polling pod status..."
           for i in {1..30}; do
-            sleep 10
+            sleep 30  
             response=$(curl -s -X GET https://api.runpod.io/v1/pods/$RUNPOD_POD_ID \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
 
