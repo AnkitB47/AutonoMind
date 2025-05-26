@@ -61,7 +61,7 @@ jobs:
           echo "Polling pod status..."
           for i in {1..30}; do
             sleep 10
-            response=$(curl -s -X GET https://api.runpod.io/v1/pods/${{ env.RUNPOD_POD_ID }} \
+            response=$(curl -s -X GET https://api.runpod.io/v1/pods/$RUNPOD_POD_ID \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
 
             echo "📡 Response: $response"
@@ -72,7 +72,7 @@ jobs:
             if [ "$STATUS" = "RUNNING" ]; then
               PUBLIC_IP=$(echo "$response" | jq -r '.publicIp')
               if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
-                echo "✅ Pod is live: http://$PUBLIC_IP:8080"
+                echo "✅ Pod is live at: http://$PUBLIC_IP:8080"
                 echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
                 echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_OUTPUT
                 break
