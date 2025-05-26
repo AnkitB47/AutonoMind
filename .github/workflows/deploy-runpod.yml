@@ -41,15 +41,17 @@ jobs:
         run: |
           runpodctl create pod \
             --templateId uhqe2m9jvy \
-            --name autonomind-gpu \
-            --gpuType NVIDIA_GEFORCE_RTX_3070 \
+            --name "AutonoMind GPU Agent" \
+            --gpuType "NVIDIA GeForce RTX 3090" \
             --gpuCount 1 \
-            --imageName ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest \
-            --ports 8080/http \
-            --volumePath /data \
-            --volumeSize 5 \
-            --mem 24 \
+            --imageName "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest" \
+            --ports "8080/http" \
+            --volumePath "/runpod" \
+            --containerDiskSize 20 \
+            --volumeSize 1 \
+            --mem 30 \
             --vcpu 8
+            --spot
 
       - name: 🔄 Wait for Pod to Start & Save URL
         id: poll
