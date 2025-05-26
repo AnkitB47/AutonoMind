@@ -1,4 +1,4 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (REST API + CLI for Pod Launch)
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (REST API Only)
 
 on:
   workflow_dispatch:
@@ -28,46 +28,45 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🛠 Install runpodctl CLI
-        run: |
-          wget -q https://github.com/Run-Pod/runpodctl/releases/download/v1.14.3/runpodctl-linux-amd64 -O runpodctl
-          chmod +x runpodctl
-          sudo mv runpodctl /usr/bin/runpodctl
-          mkdir -p ~/.runpod
-          runpodctl config --apiKey ${{ secrets.RUNPOD_API_KEY }}
-
-      - name: 🚀 Launch GPU Pod from Template (CLI)
+      - name: 🚀 Launch GPU Pod via REST API
+        id: launch_pod
         run: |
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "Launching Pod: $UNIQUE_POD_NAME"
-          POD_ID=$(runpodctl create pod \
-            --templateId uhqe2m9jvy \
-            --name "$UNIQUE_POD_NAME" \
-            --gpuType "NVIDIA GeForce RTX 3090" \
-            --gpuCount 1 \
-            --imageName "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest" \
-            --ports "8080/http" \
-            --volumePath "/runpod" \
-            --containerDiskSize 20 \
-            --volumeSize 1 \
-            --mem 30 \
-            --vcpu 8 \
-            --cost 0.22 | grep -oP '(?<=pod ")(.*?)(?=")')
+
+          response=$(curl -s -X POST https://api.runpod.io/v1/pods \
+            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "templateId": "uhqe2m9jvy",
+              "name": "'"$UNIQUE_POD_NAME"'"
+            }')
+
+          echo "Response: $response"
+          POD_ID=$(echo "$response" | jq -r '.id')
+
+          if [ "$POD_ID" = "null" ] || [ -z "$POD_ID" ]; then
+            echo "❌ Failed to launch pod. Exiting."
+            exit 1
+          fi
+
           echo "✅ Pod ID: $POD_ID"
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
-          export RUNPOD_POD_ID=$POD_ID
+          echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
 
       - name: 🔄 Poll Pod Status via REST API
         id: poll_status
         run: |
-          echo "Polling pod status..."
+          POD_ID="${{ steps.launch_pod.outputs.pod_id }}"
+          echo "Polling pod status for ID: $POD_ID..."
+
           for i in {1..30}; do
-            sleep 30  
-            response=$(curl -s -X GET https://api.runpod.io/v1/pods/$RUNPOD_POD_ID \
+            sleep 10
+
+            response=$(curl -s -X GET https://api.runpod.io/v1/pods/$POD_ID \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
 
             echo "📡 Response: $response"
-
             STATUS=$(echo "$response" | jq -r '.status')
             echo "⏳ Pod status: $STATUS"
 
