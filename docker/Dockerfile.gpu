@@ -1,32 +1,38 @@
 # --- docker/Dockerfile.gpu ---
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
-# Avoid interaction during apt installs
+# Avoid interaction prompts
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # === System Dependencies ===
-# Replace your old apt-get install step with this:
 RUN apt-get update && \
-    apt-get install -y --fix-missing \
-    git wget curl python3 python3-pip ffmpeg libsndfile1 libgl1 jq && \
+    apt-get install -y --no-install-recommends \
+        git wget curl \
+        python3 python3-pip \
+        ffmpeg libsndfile1 libgl1 jq \
+        ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 # === Set Work Directory ===
 WORKDIR /app
 
-# === Install Python Dependencies ===
+# === Copy Requirements ===
 COPY requirements-gpu.txt .
-RUN pip3 install --upgrade pip && \
+
+# === Python Setup ===
+RUN python3 -m pip install --upgrade pip setuptools wheel && \
     pip3 install --no-cache-dir -r requirements-gpu.txt
 
-# === Install PyTorch GPU (CU118) ===
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# === Install PyTorch + CUDA 11.8 ===
+RUN pip3 install torch==2.2.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# === Copy Source ===
+# === Copy Source Code ===
 COPY . .
 
-# === Environment ===
+# === Set Environment ===
 ENV USE_GPU=True
 
 # === Port ===
