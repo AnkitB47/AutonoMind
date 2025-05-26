@@ -1,4 +1,5 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (runpodctl + REST)
+# --- .github/workflows/deploy-runpod.yml ---
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (REST API)
 
 on:
   workflow_dispatch:
@@ -10,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📦 Checkout Repo
+      - name: 📦 Checkout Repository
         uses: actions/checkout@v3
 
       - name: 🐳 Set up Docker
@@ -25,62 +26,59 @@ jobs:
 
       - name: 🧱 Build & Push GPU Docker Image
         run: |
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
 
-      - name: 🛠 Install runpodctl CLI
-        run: |
-          wget -q https://github.com/Run-Pod/runpodctl/releases/download/v1.14.3/runpodctl-linux-amd64 -O runpodctl
-          chmod +x runpodctl
-          sudo mv runpodctl /usr/bin/runpodctl
-
-      - name: 🔐 Authenticate with RunPod
-        run: runpodctl config --apiKey ${{ secrets.RUNPOD_API_KEY }}
-
-      - name: 🚀 Launch GPU Pod from Template
+      - name: 🚀 Launch GPU Pod via REST API
         id: launch_pod
         run: |
-          UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
-          echo "Launching Pod: $UNIQUE_POD_NAME"
-          POD_ID=$(runpodctl create pod \
-            --templateId uhqe2m9jvy \
-            --name "$UNIQUE_POD_NAME" \
-            --gpuType "NVIDIA GeForce RTX 3090" \
-            --gpuCount 1 \
-            --imageName "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest" \
-            --ports "8080/http" \
-            --volumePath "/runpod" \
-            --containerDiskSize 20 \
-            --volumeSize 1 \
-            --mem 30 \
-            --vcpu 8 \
-            --cost 0.22 | grep -oP '(?<=pod ")(.*?)(?=")')
-          echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
+          echo "Launching pod from template..."
+
+          POD_NAME="github-actions-pod-${{ github.run_id }}"
+
+          response=$(curl -s -X POST https://api.runpod.io/v1/pods \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+            -d '{
+              "templateId": "uhqe2m9jvy",
+              "name": "'"$POD_NAME"'"
+            }')
+
+          echo "Launch response: $response"
+          POD_ID=$(echo "$response" | jq -r '.id')
+
+          if [ "$POD_ID" = "null" ] || [ -z "$POD_ID" ]; then
+            echo "❌ Failed to launch pod."
+            exit 1
+          fi
+
           echo "✅ Pod ID: $POD_ID"
+          echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
+          echo "POD_NAME=$POD_NAME" >> $GITHUB_ENV
 
       - name: 🔄 Poll Pod Status via REST API
-        id: poll
-        env:
-          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
-          RUNPOD_POD_ID: ${{ env.RUNPOD_POD_ID }}
+        id: poll_status
         run: |
-          echo "Polling Pod status from REST API..."
+          echo "Polling pod status..."
+
           for i in {1..30}; do
-            STATUS_JSON=$(curl -s -X GET https://api.runpod.ai/v1/pods/$RUNPOD_POD_ID \
-              -H "Authorization: Bearer $RUNPOD_API_KEY" \
-              -H "Content-Type: application/json")
-            
-            STATUS=$(echo "$STATUS_JSON" | jq -r '.status')
-            PUBLIC_IP=$(echo "$STATUS_JSON" | jq -r '.publicIp')
-
-            echo "⏳ Status: $STATUS | IP: $PUBLIC_IP"
-
-            if [ "$STATUS" = "RUNNING" ] && [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
-              echo "✅ Pod is live: http://$PUBLIC_IP:8080"
-              echo "POD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
-              break
-            fi
             sleep 10
+            response=$(curl -s -X GET https://api.runpod.io/v1/pods/${{ env.RUNPOD_POD_ID }} \
+              -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
+
+            echo "📡 Response: $response"
+
+            STATUS=$(echo "$response" | jq -r '.status')
+            echo "⏳ Pod status: $STATUS"
+
+            if [ "$STATUS" = "RUNNING" ]; then
+              PUBLIC_IP=$(echo "$response" | jq -r '.publicIp')
+              if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
+                echo "✅ Pod is live at: http://$PUBLIC_IP:8080"
+                echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
+                break
+              fi
+            fi
           done
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
@@ -89,7 +87,7 @@ jobs:
           fi
 
       - name: 🔐 Store Pod URL as GitHub Secret
-        run: gh secret set RUNPOD_URL --body "$POD_URL"
+        run: gh secret set RUNPOD_URL --body "$RUNPOD_URL"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          POD_URL: ${{ env.POD_URL }}
+          RUNPOD_URL: ${{ env.RUNPOD_URL }}
