@@ -1,4 +1,4 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (Spot Pod via Template)
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (runpodctl)
 
 on:
   workflow_dispatch:
@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📦 Checkout Repository
+      - name: 📦 Checkout Repo
         uses: actions/checkout@v3
 
-      - name: 🐳 Set up Docker Buildx
+      - name: 🐳 Set up Docker
         uses: docker/setup-buildx-action@v2
 
       - name: 🔐 Login to GHCR
@@ -23,36 +23,32 @@ jobs:
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: 🧱 Build & Push Docker Image
+      - name: 🧱 Build & Push GPU Docker Image
         run: |
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
 
-      - name: 📥 Install runpodctl CLI
+      - name: 🛠 Install runpodctl CLI
         run: |
           wget -q https://github.com/Run-Pod/runpodctl/releases/download/v1.14.3/runpodctl-linux-amd64 -O runpodctl
           chmod +x runpodctl
           sudo mv runpodctl /usr/bin/runpodctl
 
-      - name: 🔐 Authenticate runpodctl
-        run: |
-          mkdir -p ~/.runpod
-          echo "apiKey: ${{ secrets.RUNPOD_API_KEY }}" > ~/.runpod/.runpod.yaml
+      - name: 🔐 Authenticate with RunPod
+        run: runpodctl config --apiKey ${{ secrets.RUNPOD_API_KEY }}
 
-
-      - name: 🚀 Launch GPU Pod from Template (Spot)
+      - name: 🚀 Launch GPU Pod from Template
         env:
-          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+          GHCR_USER: ${{ secrets.GHCR_USER }}
         run: |
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "Launching Pod: $UNIQUE_POD_NAME"
-
           runpodctl create pod \
             --templateId uhqe2m9jvy \
             --name "$UNIQUE_POD_NAME" \
             --gpuType "NVIDIA GeForce RTX 3090" \
             --gpuCount 1 \
-            --imageName "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest" \
+            --imageName "ghcr.io/${GHCR_USER}/autonomind-gpu:latest" \
             --ports "8080/http" \
             --volumePath "/runpod" \
             --containerDiskSize 20 \
@@ -61,24 +57,27 @@ jobs:
             --vcpu 8 \
             --cost 0.22
 
-      - name: 🔄 Wait for Pod to Start & Save URL
+      - name: 🔄 Wait for Pod to Start & Save Public URL
         id: poll
+        env:
+          GHCR_USER: ${{ secrets.GHCR_USER }}
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
         run: |
           POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "Polling for Pod ID and Public IP..."
 
           for i in {1..30}; do
-            POD_JSON=$(runpodctl get pods)
+            POD_JSON=$(runpodctl get pods --output json)
             POD_ID=$(echo "$POD_JSON" | jq -r --arg name "$POD_NAME" '.[] | select(.name==$name) | .id')
 
             if [ -n "$POD_ID" ]; then
-              STATUS=$(runpodctl get pod "$POD_ID" | jq -r '.status')
+              STATUS=$(runpodctl get pod "$POD_ID" --output json | jq -r '.status')
               echo "⏳ Pod status: $STATUS"
 
               if [ "$STATUS" = "RUNNING" ]; then
-                PUBLIC_IP=$(runpodctl get pod "$POD_ID" | jq -r '.publicIp')
+                PUBLIC_IP=$(runpodctl get pod "$POD_ID" --output json | jq -r '.publicIp')
                 if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
-                  echo "✅ GPU Pod is live: http://$PUBLIC_IP:8080"
+                  echo "✅ Pod is live: http://$PUBLIC_IP:8080"
                   echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
                   break
                 fi
@@ -87,9 +86,13 @@ jobs:
             sleep 10
           done
 
-      - name: 🔒 Store Pod URL as GitHub Secret
-        run: gh secret set RUNPOD_URL --body "$RUNPOD_URL"
+          if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
+            echo "❌ Pod failed to start or no public IP assigned."
+            exit 1
+          fi
+
+      - name: 🔐 Store Pod URL as GitHub Secret
+        run: gh secret set RUNPOD_URL --body "$POD_URL"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUNPOD_URL: ${{ env.RUNPOD_URL }}
-
+          POD_URL: ${{ env.RUNPOD_URL }}
