@@ -40,7 +40,7 @@ jobs:
           pod_id=$(echo "$response" | jq -r '.id')
           echo "RUNPOD_POD_ID=$pod_id" >> $GITHUB_ENV
 
-      - name: 🔄 Poll for Pod Readiness & Capture Endpoint
+      - name: 🔄 Poll for Pod Readiness & Store Endpoint
         run: |
           for i in {1..30}; do
             status_response=$(curl -s -X POST https://api.runpod.ai/v2/uhqe2m9jvy/status \
@@ -48,15 +48,21 @@ jobs:
               -H "Content-Type: application/json" \
               -d "{\"id\": \"${{ env.RUNPOD_POD_ID }}\"}")
 
-            status=$(echo "$status_response" | jq -r '.status')
-            echo "⏳ Pod status: $status"
+            # Check if it's a valid JSON object
+            echo "🧪 Raw status response: $status_response"
+            if echo "$status_response" | jq -e . >/dev/null 2>&1; then
+              status=$(echo "$status_response" | jq -r '.status')
+              echo "⏳ Pod status: $status"
 
-            if [ "$status" = "RUNNING" ]; then
-              url=$(echo "$status_response" | jq -r '.endpoint')
-              echo "✅ Live RunPod URL: $url"
-              echo "RUNPOD_URL=$url" >> $GITHUB_ENV
-              gh secret set RUNPOD_URL -b"$url"
-              break
+              if [ "$status" = "RUNNING" ]; then
+                url=$(echo "$status_response" | jq -r '.endpoint')
+                echo "✅ Live RunPod URL: $url"
+                echo "RUNPOD_URL=$url" >> $GITHUB_ENV
+                gh secret set RUNPOD_URL -b"$url"
+                break
+              fi
+            else
+              echo "❌ Invalid JSON response: $status_response"
             fi
 
             sleep 10
