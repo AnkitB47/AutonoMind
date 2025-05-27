@@ -1,4 +1,4 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (REST API, No Template)
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (Spot Instance)
 
 on:
   workflow_dispatch:
@@ -28,19 +28,19 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch GPU Pod via REST API
+      - name: 🚀 Launch GPU Spot Pod via REST API
         id: launch_pod
         run: |
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
-          echo "Launching Pod: $UNIQUE_POD_NAME"
+          echo "Launching Spot Pod: $UNIQUE_POD_NAME"
 
-          # First verify API key works
+          # Verify API key works
           echo "🔍 Testing API key..."
-          curl -v -X GET https://api.runpod.io/v1/pods \
+          curl -v -X GET "https://api.runpod.io/v1/pods" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}"
 
-          # Then try the pod creation
-          response=$(curl -v -X POST https://api.runpod.io/v1/pods \
+          # Create spot pod
+          response=$(curl -v -X POST "https://api.runpod.io/v1/pods" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d @- <<EOF
@@ -48,14 +48,17 @@ jobs:
             "name": "$UNIQUE_POD_NAME",
             "imageName": "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest",
             "gpuTypeId": "NVIDIA GeForce RTX 3090",
-            "cloudType": "SECURE",
+            "cloudType": "COMMUNITY",
             "containerDiskInGb": 20,
             "volumeInGb": 1,
             "gpuCount": 1,
             "ports": "8080/http",
-            "memoryInGb": 30,
-            "vcpuCount": 8,
-            "volumeMountPath": "/runpod"
+            "memoryInGb": 24,
+            "vcpuCount": 4,
+            "volumeMountPath": "/runpod",
+            "bidPerGpu": 0.22,
+            "minVcpuCount": 4,
+            "minMemoryInGb": 24
           }
           EOF
           )
@@ -82,7 +85,7 @@ jobs:
           for i in {1..30}; do
             sleep 20
 
-            response=$(curl -s -X GET https://api.runpod.io/v1/pods/$POD_ID \
+            response=$(curl -s -X GET "https://api.runpod.io/v1/pods/$POD_ID" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
 
             echo "📡 Response: $response"
