@@ -34,10 +34,11 @@ jobs:
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "Launching Pod: $UNIQUE_POD_NAME"
 
-          response=$(curl -s -X POST https://api.runpod.io/v2/uhqe2m9jvy/run \
+          response=$(curl -s -X POST https://api.runpod.io/v1/pods \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d '{
+                  "templateId": "uhqe2m9jvy",
                   "name": "'"$UNIQUE_POD_NAME"'"
                 }')
 
@@ -52,7 +53,6 @@ jobs:
           echo "✅ Pod ID: $POD_ID"
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
           echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
-
 
       - name: 🔄 Poll Pod Status via REST API
         id: poll_status
