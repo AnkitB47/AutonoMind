@@ -34,33 +34,38 @@ jobs:
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "Launching Pod: $UNIQUE_POD_NAME"
 
-          response=$(curl -s -X POST https://api.runpod.io/v1/pods \
+          # First verify API key works
+          echo "🔍 Testing API key..."
+          curl -v -X GET https://api.runpod.io/v1/pods \
+            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}"
+
+          # Then try the pod creation
+          response=$(curl -v -X POST https://api.runpod.io/v1/pods \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d @- <<EOF
           {
-            "gpuTypeId": "NVIDIA GeForce RTX 3090",
             "name": "$UNIQUE_POD_NAME",
             "imageName": "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest",
+            "gpuTypeId": "NVIDIA GeForce RTX 3090",
+            "cloudType": "SECURE",
             "containerDiskInGb": 20,
             "volumeInGb": 1,
             "gpuCount": 1,
-            "ports": ["8080/http"],
-            "memInGb": 30,
+            "ports": "8080/http",
+            "memoryInGb": 30,
             "vcpuCount": 8,
-            "volumeMountPath": "/runpod",
-            "networkVolume": false,
-            "cost": 0.22
+            "volumeMountPath": "/runpod"
           }
           EOF
           )
 
-
-          echo "📡 Launch response: $response"
+          echo "📡 Full launch response: $response"
           POD_ID=$(echo "$response" | jq -r '.id')
 
           if [ "$POD_ID" = "null" ] || [ -z "$POD_ID" ]; then
-            echo "❌ Failed to launch pod. Exiting."
+            echo "❌ Failed to launch pod. Full response:"
+            echo "$response"
             exit 1
           fi
 
