@@ -1,4 +1,4 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (REST API Only)
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (Pod Template via REST API)
 
 on:
   workflow_dispatch:
@@ -25,10 +25,10 @@ jobs:
 
       - name: 🧱 Build & Push GPU Docker Image
         run: |
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
+          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch GPU Pod via REST API
+      - name: 🚀 Launch GPU Pod from Template
         id: launch_pod
         run: |
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
