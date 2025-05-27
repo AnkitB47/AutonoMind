@@ -41,7 +41,7 @@ jobs:
           {
             "gpuTypeId": "NVIDIA GeForce RTX 3090",
             "name": "$UNIQUE_POD_NAME",
-            "imageName": "ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest",
+            "imageName": "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest",
             "containerDiskInGb": 20,
             "volumeInGb": 1,
             "gpuCount": 1,
