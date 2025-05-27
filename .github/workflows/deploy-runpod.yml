@@ -1,4 +1,4 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (Pod Template via REST API)
+name: 🚀 CI/CD - Deploy GPU Agent to RunPod (REST API, No Template)
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch GPU Pod from Template
+      - name: 🚀 Launch GPU Pod via REST API
         id: launch_pod
         run: |
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
@@ -37,12 +37,25 @@ jobs:
           response=$(curl -s -X POST https://api.runpod.io/v1/pods \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{
-                  "templateId": "uhqe2m9jvy",
-                  "name": "'"$UNIQUE_POD_NAME"'"
-                }')
+            -d @- <<EOF
+            {
+              "gpuTypeId": "NVIDIA GeForce RTX 3090",
+              "name": "$UNIQUE_POD_NAME",
+              "imageName": "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest",
+              "containerDiskInGb": 20,
+              "volumeInGb": 1,
+              "gpuCount": 1,
+              "ports": ["8080/http"],
+              "memInGb": 30,
+              "vcpuCount": 8,
+              "volumeMountPath": "/runpod",
+              "networkVolume": false,
+              "cost": 0.22
+            }
+            EOF
+            )
 
-          echo "Response: $response"
+          echo "📡 Launch response: $response"
           POD_ID=$(echo "$response" | jq -r '.id')
 
           if [ "$POD_ID" = "null" ] || [ -z "$POD_ID" ]; then
@@ -61,7 +74,7 @@ jobs:
           echo "Polling pod status for ID: $POD_ID..."
 
           for i in {1..30}; do
-            sleep 10
+            sleep 20
 
             response=$(curl -s -X GET https://api.runpod.io/v1/pods/$POD_ID \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
