@@ -38,22 +38,23 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d @- <<EOF
-            {
-              "gpuTypeId": "NVIDIA GeForce RTX 3090",
-              "name": "$UNIQUE_POD_NAME",
-              "imageName": "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest",
-              "containerDiskInGb": 20,
-              "volumeInGb": 1,
-              "gpuCount": 1,
-              "ports": ["8080/http"],
-              "memInGb": 30,
-              "vcpuCount": 8,
-              "volumeMountPath": "/runpod",
-              "networkVolume": false,
-              "cost": 0.22
-            }
-            EOF
-            )
+          {
+            "gpuTypeId": "NVIDIA GeForce RTX 3090",
+            "name": "$UNIQUE_POD_NAME",
+            "imageName": "ghcr.io/${{ secrets.GHCR_USER }}/autonomind-gpu:latest",
+            "containerDiskInGb": 20,
+            "volumeInGb": 1,
+            "gpuCount": 1,
+            "ports": ["8080/http"],
+            "memInGb": 30,
+            "vcpuCount": 8,
+            "volumeMountPath": "/runpod",
+            "networkVolume": false,
+            "cost": 0.22
+          }
+          EOF
+          )
+
 
           echo "📡 Launch response: $response"
           POD_ID=$(echo "$response" | jq -r '.id')
