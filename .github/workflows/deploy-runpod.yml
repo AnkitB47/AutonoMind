@@ -28,46 +28,58 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🚀 Launch GPU Spot Pod via REST API
+      - name: 🚀 Launch GPU Spot Pod via GraphQL API
         id: launch_pod
         run: |
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
-          echo "Launching Spot Pod: $UNIQUE_POD_NAME"
+          echo "🚀 Creating spot pod: $UNIQUE_POD_NAME"
 
-          # Verify API key works
+          # Verify API connectivity
           echo "🔍 Testing API key..."
-          curl -v -X GET "https://api.runpod.io/v1/pods" \
-            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}"
+          API_TEST=$(curl -s -X POST "https://api.runpod.io/graphql" \
+            -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"query":"query { myself { id } }"}')
+          echo "API Test Response: $API_TEST"
 
           # Create spot pod
-          response=$(curl -v -X POST "https://api.runpod.io/v1/pods" \
+          response=$(curl -s -X POST "https://api.runpod.io/graphql" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d @- <<EOF
           {
-            "name": "$UNIQUE_POD_NAME",
-            "imageName": "ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest",
-            "gpuTypeId": "NVIDIA GeForce RTX 3090",
-            "cloudType": "COMMUNITY",
-            "containerDiskInGb": 20,
-            "volumeInGb": 1,
-            "gpuCount": 1,
-            "ports": "8080/http",
-            "memoryInGb": 24,
-            "vcpuCount": 4,
-            "volumeMountPath": "/runpod",
-            "bidPerGpu": 0.22,
-            "minVcpuCount": 4,
-            "minMemoryInGb": 24
+            "query": "mutation { 
+              podFindAndDeployOnDemand(input: { 
+                cloudType: COMMUNITY, 
+                gpuCount: 1, 
+                volumeInGb: 1, 
+                containerDiskInGb: 20, 
+                minVcpuCount: 4, 
+                minMemoryInGb: 24, 
+                gpuTypeId: \"NVIDIA GeForce RTX 3090\", 
+                name: \"$UNIQUE_POD_NAME\", 
+                imageName: \"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\", 
+                ports: \"8080/http\", 
+                volumeMountPath: \"/runpod\", 
+                bidPerGpu: 0.22 
+              }) { 
+                id 
+                desiredStatus 
+              } 
+            }"
           }
           EOF
           )
 
           echo "📡 Full launch response: $response"
-          POD_ID=$(echo "$response" | jq -r '.id')
+          POD_ID=$(echo "$response" | jq -r '.data.podFindAndDeployOnDemand.id')
 
-          if [ "$POD_ID" = "null" ] || [ -z "$POD_ID" ]; then
-            echo "❌ Failed to launch pod. Full response:"
+          if [ -z "$POD_ID" ] || [ "$POD_ID" = "null" ]; then
+            echo "❌ Failed to launch pod. Possible issues:"
+            echo "- Invalid API key"
+            echo "- Insufficient bid price"
+            echo "- GPU type unavailable"
+            echo "Full response:"
             echo "$response"
             exit 1
           fi
@@ -76,39 +88,45 @@ jobs:
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
           echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
 
-      - name: 🔄 Poll Pod Status via REST API
+      - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
         run: |
           POD_ID="${{ steps.launch_pod.outputs.pod_id }}"
-          echo "Polling pod status for ID: $POD_ID..."
+          echo "⌛ Polling pod status for ID: $POD_ID..."
 
           for i in {1..30}; do
             sleep 20
 
-            response=$(curl -s -X GET "https://api.runpod.io/v1/pods/$POD_ID" \
-              -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}")
+            response=$(curl -s -X POST "https://api.runpod.io/graphql" \
+              -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d @- <<EOF
+            {
+              "query": "query { pod(input: { podId: \"$POD_ID\" }) { status publicIp } }"
+            }
+            EOF
+            )
 
-            echo "📡 Response: $response"
-            STATUS=$(echo "$response" | jq -r '.status')
-            echo "⏳ Pod status: $STATUS"
+            STATUS=$(echo "$response" | jq -r '.data.pod.status')
+            PUBLIC_IP=$(echo "$response" | jq -r '.data.pod.publicIp')
+            echo "🔄 Status check $i: $STATUS"
 
-            if [ "$STATUS" = "RUNNING" ]; then
-              PUBLIC_IP=$(echo "$response" | jq -r '.publicIp')
-              if [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
-                echo "✅ Pod is live at: http://$PUBLIC_IP:8080"
-                echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
-                echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_OUTPUT
-                break
-              fi
+            if [ "$STATUS" = "RUNNING" ] && [ "$PUBLIC_IP" != "null" ]; then
+              echo "✅ Pod is live at: http://$PUBLIC_IP:8080"
+              echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
+              echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_OUTPUT
+              break
             fi
           done
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
-            echo "❌ Pod failed to start or no public IP assigned."
+            echo "❌ Pod failed to start within 10 minutes"
+            echo "Last response: $response"
             exit 1
           fi
 
       - name: 🔐 Store Pod URL as GitHub Secret
+        if: success()
         run: gh secret set RUNPOD_URL --body "${{ steps.poll_status.outputs.RUNPOD_URL }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
