@@ -27,7 +27,7 @@ jobs:
         run: |
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
-      
+
       - name: 🔍 Verify Image Exists on GHCR (Public)
         run: |
           docker manifest inspect ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest > /dev/null
@@ -64,8 +64,8 @@ jobs:
           POD_ID="${{ steps.launch_pod.outputs.pod_id }}"
           echo "⌛ Polling pod status for ID: $POD_ID..."
 
-          for i in {1..30}; do
-            sleep 20
+          for i in {1..45}; do
+            sleep 60
             STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status runtime { ports { ip isIpPublic publicPort type } } } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
@@ -73,19 +73,23 @@ jobs:
               -d "$STATUS_QUERY")
 
             STATUS=$(echo "$response" | jq -r '.data.pod.status')
-            # Extract the first public port 8080 with isIpPublic true
-            PORT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.isIpPublic == true and .publicPort == 8080)')
-            PUBLIC_IP=$(echo "$PORT_INFO" | jq -r '.ip')
-            PUBLIC_PORT=$(echo "$PORT_INFO" | jq -r '.publicPort')
+
+            PORTS_EXIST=$(echo "$response" | jq -e '.data.pod.runtime.ports? // empty' > /dev/null 2>&1 && echo "yes" || echo "no")
+
+            if [ "$STATUS" = "RUNNING" ] && [ "$PORTS_EXIST" = "yes" ]; then
+              PORT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.isIpPublic == true and .publicPort == 8080)')
+              PUBLIC_IP=$(echo "$PORT_INFO" | jq -r '.ip // empty')
+              PUBLIC_PORT=$(echo "$PORT_INFO" | jq -r '.publicPort // empty')
+
+              if [ -n "$PUBLIC_IP" ]; then
+                echo "✅ Pod is live at: http://$PUBLIC_IP:$PUBLIC_PORT"
+                echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_ENV
+                echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_OUTPUT
+                break
+              fi
+            fi
 
             echo "🔄 Status check $i: $STATUS"
-
-            if [ "$STATUS" = "RUNNING" ] && [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
-              echo "✅ Pod is live at: http://$PUBLIC_IP:$PUBLIC_PORT"
-              echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_ENV
-              echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_OUTPUT
-              break
-            fi
           done
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
