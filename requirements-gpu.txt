@@ -8,6 +8,7 @@ orjson
 
 # LangChain + LangGraph + Tracing
 langchain
+langchain-community
 langgraph
 langfuse
 prometheus-fastapi-instrumentator

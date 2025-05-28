@@ -3,6 +3,7 @@ streamlit
 fastapi
 uvicorn
 langchain
+langchain-community
 langgraph
 pinecone-client
 openai
