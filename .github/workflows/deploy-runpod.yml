@@ -50,7 +50,7 @@ jobs:
     containerDiskInGb: 20, 
     minVcpuCount: 8, 
     minMemoryInGb: 31, 
-    gpuTypeId: \\"NVIDIA RTX A4500\\", 
+    gpuTypeId: \\"RTX A4500\\", 
     name: \\"$UNIQUE_POD_NAME\\", 
     imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", 
     ports: \\"8080/http\\", 
@@ -73,6 +73,7 @@ EOF
           echo "✅ Pod ID: $POD_ID"
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
           echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
+
 
       - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
