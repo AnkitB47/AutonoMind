@@ -28,14 +28,20 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🌍 Make GHCR Image Public
+      - name: 🌍 Make GHCR Image Public (Org or User)
         run: |
+          PACKAGE_SCOPE="${{ secrets.GHCRL_USER }}"
           gh api --method PATCH \
             -H "Accept: application/vnd.github+json" \
-            /orgs/AnkitB47/packages/container/autonomind-gpu/visibility \
+            /users/$PACKAGE_SCOPE/packages/container/autonomind-gpu/visibility \
+            -f visibility=public || \
+          gh api --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            /orgs/$PACKAGE_SCOPE/packages/container/autonomind-gpu/visibility \
             -f visibility=public
         env:
           GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
 
       - name: 🔍 Verify Image Exists on GHCR (Public)
         run: |
