@@ -38,10 +38,8 @@ jobs:
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
-          GRAPHQL_QUERY=$(cat <<JSON
-{"query":"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\"NVIDIA RTX A4500\\", name: \\"$UNIQUE_POD_NAME\\", imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", ports: \\"8080/http\\", volumeMountPath: \\"/runpod\\" }) { id } }"}
-JSON
-)
+          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\\", ports: \\\"8080/http\\\", volumeMountPath: \\\"/runpod\\\" }) { id } }\"}"
+
           response=$(curl -s -X POST "https://api.runpod.io/graphql" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
@@ -52,7 +50,6 @@ JSON
 
           if [ -z "$POD_ID" ] || [ "$POD_ID" = "null" ]; then
             echo "❌ Failed to launch pod. Check GPU availability and image visibility."
-            echo "Full response:"
             echo "$response"
             exit 1
           fi
@@ -69,7 +66,7 @@ JSON
 
           for i in {1..30}; do
             sleep 20
-            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\"$POD_ID\\" }) { status publicIp } }\"}"
+            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status publicIp } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
