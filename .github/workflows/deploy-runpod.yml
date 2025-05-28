@@ -28,9 +28,9 @@ jobs:
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
-      - name: 🔍 Verify Image Accessibility
+      - name: 🔍 Verify Image Exists on GHCR (Public)
         run: |
-          curl -s "https://ghcr.io/v2/${{ secrets.GHCRL_USER }}/autonomind-gpu/tags/list" | jq
+          docker manifest inspect ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest > /dev/null
 
       - name: 🚀 Launch GPU Pod via GraphQL API (Secure Cloud)
         id: launch_pod
@@ -42,30 +42,30 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d @- <<EOF
-          {
-            "query": "mutation PodDeploy { podFindAndDeployOnDemand(input: { 
-              cloudType: SECURE, 
-              gpuCount: 1, 
-              volumeInGb: 1, 
-              containerDiskInGb: 20, 
-              minVcpuCount: 8, 
-              minMemoryInGb: 31, 
-              gpuTypeId: \\"NVIDIA RTX A4500\\", 
-              name: \\"$UNIQUE_POD_NAME\\", 
-              imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", 
-              ports: \\"8080/http\\", 
-              volumeMountPath: \\"/runpod\\" 
-            }) { id } }"
-          }
-          EOF
+{
+  "query": "mutation PodDeploy { podFindAndDeployOnDemand(input: { 
+    cloudType: SECURE, 
+    gpuCount: 1, 
+    volumeInGb: 1, 
+    containerDiskInGb: 20, 
+    minVcpuCount: 8, 
+    minMemoryInGb: 31, 
+    gpuTypeId: \\"NVIDIA RTX A4500\\", 
+    name: \\"$UNIQUE_POD_NAME\\", 
+    imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", 
+    ports: \\"8080/http\\", 
+    volumeMountPath: \\"/runpod\\" 
+  }) { id } }"
+}
+EOF
           )
 
           echo "📡 Full launch response: $response"
           POD_ID=$(echo "$response" | jq -r '.data.podFindAndDeployOnDemand.id')
 
           if [ -z "$POD_ID" ] || [ "$POD_ID" = "null" ]; then
-            echo "❌ Failed to launch pod. Check GPU availability and image."
-            echo "Full error:"
+            echo "❌ Failed to launch pod. Check GPU availability and image visibility."
+            echo "Full response:"
             echo "$response"
             exit 1
           fi
@@ -86,11 +86,12 @@ jobs:
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
               -d @- <<EOF
-            {
-              "query": "query PodStatus { pod(input: { podId: \\"$POD_ID\\" }) { status publicIp } }"
-            }
-            EOF
+{
+  "query": "query PodStatus { pod(input: { podId: \\"$POD_ID\\" }) { status publicIp } }"
+}
+EOF
             )
+
             STATUS=$(echo "$response" | jq -r '.data.pod.status')
             PUBLIC_IP=$(echo "$response" | jq -r '.data.pod.publicIp')
             echo "🔄 Status check $i: $STATUS"
@@ -104,7 +105,7 @@ jobs:
           done
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
-            echo "❌ Pod failed to start within 10 minutes"
+            echo "❌ Pod failed to start within timeout"
             exit 1
           fi
 
