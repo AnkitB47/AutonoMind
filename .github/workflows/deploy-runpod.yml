@@ -56,7 +56,7 @@ jobs:
 
           echo "✅ Pod ID: $POD_ID"
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
-          echo "::set-output name=pod_id::$POD_ID"
+          echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
 
       - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
@@ -66,20 +66,24 @@ jobs:
 
           for i in {1..30}; do
             sleep 20
-            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status publicIp } }\"}"
+            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status runtime { ports { ip isIpPublic publicPort type } } } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
               -d "$STATUS_QUERY")
 
             STATUS=$(echo "$response" | jq -r '.data.pod.status')
-            PUBLIC_IP=$(echo "$response" | jq -r '.data.pod.publicIp')
+            # Extract the first public port 8080 with isIpPublic true
+            PORT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.isIpPublic == true and .publicPort == 8080)')
+            PUBLIC_IP=$(echo "$PORT_INFO" | jq -r '.ip')
+            PUBLIC_PORT=$(echo "$PORT_INFO" | jq -r '.publicPort')
+
             echo "🔄 Status check $i: $STATUS"
 
-            if [ "$STATUS" = "RUNNING" ] && [ "$PUBLIC_IP" != "null" ]; then
-              echo "✅ Pod is live at: http://$PUBLIC_IP:8080"
-              echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_ENV
-              echo "RUNPOD_URL=http://$PUBLIC_IP:8080" >> $GITHUB_OUTPUT
+            if [ "$STATUS" = "RUNNING" ] && [ -n "$PUBLIC_IP" ] && [ "$PUBLIC_IP" != "null" ]; then
+              echo "✅ Pod is live at: http://$PUBLIC_IP:$PUBLIC_PORT"
+              echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_ENV
+              echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_OUTPUT
               break
             fi
           done
@@ -94,3 +98,7 @@ jobs:
         run: gh secret set RUNPOD_URL --body "${{ steps.poll_status.outputs.RUNPOD_URL }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📣 Deployment Summary
+        if: success()
+        run: echo "🚀 Your app is live at ${{ steps.poll_status.outputs.RUNPOD_URL }}"
