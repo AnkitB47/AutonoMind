@@ -72,14 +72,17 @@ jobs:
               -H "Content-Type: application/json" \
               -d "$STATUS_QUERY")
 
-            STATUS=$(echo "$response" | jq -r '.data.pod.status')
+            # Check if runtime.ports exists and is a non-empty array
+            PORTS_EXIST=$(echo "$response" | jq -e '.data.pod.runtime.ports | type == "array" and length > 0' >/dev/null 2>&1 && echo "yes" || echo "no")
 
-            PORTS_EXIST=$(echo "$response" | jq -e '.data.pod.runtime.ports? // empty' > /dev/null 2>&1 && echo "yes" || echo "no")
+            if [ "$PORTS_EXIST" = "yes" ]; then
+              # Safely extract the first public port 8080 with a public IP
+              PORT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.isIpPublic == true and .publicPort == 8080)' || true)
 
-            if [ "$STATUS" = "RUNNING" ] && [ "$PORTS_EXIST" = "yes" ]; then
-              PORT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.isIpPublic == true and .publicPort == 8080)')
               PUBLIC_IP=$(echo "$PORT_INFO" | jq -r '.ip // empty')
               PUBLIC_PORT=$(echo "$PORT_INFO" | jq -r '.publicPort // empty')
+
+              echo "🔄 Port check $i: $PUBLIC_IP:$PUBLIC_PORT"
 
               if [ -n "$PUBLIC_IP" ]; then
                 echo "✅ Pod is live at: http://$PUBLIC_IP:$PUBLIC_PORT"
