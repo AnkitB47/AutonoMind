@@ -32,7 +32,7 @@ jobs:
         run: |
           gh api --method PATCH \
             -H "Accept: application/vnd.github+json" \
-            /user/packages/container/autonomind-gpu/visibility \
+            /orgs/AnkitB47/packages/container/autonomind-gpu/visibility \
             -f visibility=public
         env:
           GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
