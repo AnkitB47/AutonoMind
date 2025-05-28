@@ -38,27 +38,14 @@ jobs:
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
+          GRAPHQL_QUERY=$(cat <<JSON
+{"query":"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\"NVIDIA RTX A4500\\", name: \\"$UNIQUE_POD_NAME\\", imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", ports: \\"8080/http\\", volumeMountPath: \\"/runpod\\" }) { id } }"}
+JSON
+)
           response=$(curl -s -X POST "https://api.runpod.io/graphql" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d @- <<EOF
-{
-  "query": "mutation PodDeploy { podFindAndDeployOnDemand(input: { 
-    cloudType: SECURE, 
-    gpuCount: 1, 
-    volumeInGb: 1, 
-    containerDiskInGb: 20, 
-    minVcpuCount: 8, 
-    minMemoryInGb: 31, 
-    gpuTypeId: \\"RTX A4500\\", 
-    name: \\"$UNIQUE_POD_NAME\\", 
-    imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", 
-    ports: \\"8080/http\\", 
-    volumeMountPath: \\"/runpod\\" 
-  }) { id } }"
-}
-EOF
-          )
+            -d "$GRAPHQL_QUERY")
 
           echo "📡 Full launch response: $response"
           POD_ID=$(echo "$response" | jq -r '.data.podFindAndDeployOnDemand.id')
@@ -74,7 +61,6 @@ EOF
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
           echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
 
-
       - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
         run: |
@@ -83,15 +69,11 @@ EOF
 
           for i in {1..30}; do
             sleep 20
+            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\"$POD_ID\\" }) { status publicIp } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
-              -d @- <<EOF
-{
-  "query": "query PodStatus { pod(input: { podId: \\"$POD_ID\\" }) { status publicIp } }"
-}
-EOF
-            )
+              -d "$STATUS_QUERY")
 
             STATUS=$(echo "$response" | jq -r '.data.pod.status')
             PUBLIC_IP=$(echo "$response" | jq -r '.data.pod.publicIp')
