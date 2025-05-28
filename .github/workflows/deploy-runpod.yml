@@ -30,8 +30,7 @@ jobs:
 
       - name: 🔍 Verify Image Accessibility
         run: |
-          curl -s -H "Authorization: Bearer ${{ secrets.GHCR_TOKEN }}" \
-            "https://ghcr.io/v2/${{ secrets.GHCRL_USER }}/autonomind-gpu/tags/list" | jq
+          curl -s "https://ghcr.io/v2/${{ secrets.GHCRL_USER }}/autonomind-gpu/tags/list" | jq
 
       - name: 🚀 Launch GPU Pod via GraphQL API (Secure Cloud)
         id: launch_pod
@@ -54,7 +53,6 @@ jobs:
               gpuTypeId: \\"NVIDIA RTX A4500\\", 
               name: \\"$UNIQUE_POD_NAME\\", 
               imageName: \\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\", 
-              registryCredentialId: \\"${{ secrets.RUNPOD_REGISTRY_CREDENTIAL_ID }}\\", 
               ports: \\"8080/http\\", 
               volumeMountPath: \\"/runpod\\" 
             }) { id } }"
@@ -66,7 +64,7 @@ jobs:
           POD_ID=$(echo "$response" | jq -r '.data.podFindAndDeployOnDemand.id')
 
           if [ -z "$POD_ID" ] || [ "$POD_ID" = "null" ]; then
-            echo "❌ Failed to launch pod. Check GPU availability, image, and registry credentials."
+            echo "❌ Failed to launch pod. Check GPU availability and image."
             echo "Full error:"
             echo "$response"
             exit 1
