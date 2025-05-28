@@ -17,7 +17,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # === Set Work Directory ===
-WORKDIR /app
+WORKDIR /workspace
 
 # === Copy Requirements ===
 COPY requirements-gpu.txt .
@@ -34,10 +34,10 @@ COPY . .
 
 # === Set Environment ===
 ENV USE_GPU=True
+ENV PYTHONPATH=/workspace
 
-# === Port ===
+# === Expose Port ===
 EXPOSE 8080
 
 # === Entrypoint ===
 CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
-
