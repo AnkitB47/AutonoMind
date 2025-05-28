@@ -56,7 +56,7 @@ jobs:
 
           echo "✅ Pod ID: $POD_ID"
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
-          echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
+          echo "::set-output name=pod_id::$POD_ID"
 
       - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
