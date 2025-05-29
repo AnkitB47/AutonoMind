@@ -1,12 +1,15 @@
 # --- vectorstore/pinecone_store.py ---
 import os
 import fitz
-from app.config import settings
+from app.config import Settings
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+
+# Load environment settings
+settings = Settings()
 
 # Init Pinecone client using config
 pc = Pinecone(api_key=settings.PINECONE_API_KEY)

@@ -4,7 +4,10 @@ from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from app.config import settings
+from app.config import Settings
+
+# Load environment settings
+settings = Settings()
 
 FAISS_INDEX_PATH = os.getenv("FAISS_INDEX_PATH", "faiss_db")
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)

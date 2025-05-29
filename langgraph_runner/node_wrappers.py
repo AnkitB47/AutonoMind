@@ -2,8 +2,12 @@
 from langchain_core.runnables import RunnableLambda
 import requests
 import os
+from app.config import Settings
 
-RUNPOD_URL = os.getenv("RUNPOD_URL", "")
+# Load environment settings
+settings = Settings()
+
+RUNPOD_URL = settings.RUNPOD_URL
 
 
 class RemoteWhisperNode(RunnableLambda):

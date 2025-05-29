@@ -3,7 +3,10 @@ import os
 from fastapi import APIRouter
 from langgraph.graph import StateGraph
 from langgraph_runner.node_wrappers import RemoteWhisperNode, RemoteImageNode
-from app.config import settings
+from app.config import Settings
+
+# Load environment settings
+settings = Settings()
 
 router = APIRouter(prefix="/graph", tags=["langgraph"])
 RUNPOD_URL = settings.RUNPOD_URL  

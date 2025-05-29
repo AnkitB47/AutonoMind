@@ -4,7 +4,10 @@ from langgraph.graph import StateGraph
 from langchain.schema.runnable import RunnableLambda
 from agents import search_agent, rag_agent, translate_agent, plugin_loader
 import langfuse
-from app.config import settings
+from app.config import Settings
+
+# Load environment settings
+settings = Settings()
 
 # Initialize Langfuse client
 lf = langfuse.Langfuse(

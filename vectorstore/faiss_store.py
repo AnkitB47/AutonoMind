@@ -2,7 +2,10 @@
 import os
 from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
-from app.config import settings
+from app.config import Settings
+
+# Load environment settings
+settings = Settings()
 
 FAISS_INDEX_PATH = os.getenv("FAISS_INDEX_PATH", "faiss_db")
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
