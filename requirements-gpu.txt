@@ -32,3 +32,4 @@ ipython
 black
 flake8
 autopep8
+tenacity

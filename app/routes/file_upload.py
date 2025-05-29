@@ -1,11 +1,10 @@
 # --- app/routes/file_upload.py ---
-from fastapi import APIRouter, UploadFile, File
-from agents import rag_agent
+from fastapi import APIRouter, UploadFile
+from agents.rag_agent import process_file
 
-router = APIRouter(prefix="/file", tags=["file"])
-
+router = APIRouter()
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    result = await rag_agent.process_file(file)
-    return {"response": result}
+async def upload_file(file: UploadFile):
+    result = await process_file(file)
+    return {"message": result}
