@@ -2,6 +2,7 @@
 name: 🚀 CI/CD - Deploy to Fly.io (CPU)
 
 on:
+  workflow_dispatch: 
   push:
     branches: [main]
 

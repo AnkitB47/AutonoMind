@@ -65,7 +65,7 @@ jobs:
           echo "⌛ Polling pod status for ID: $POD_ID..."
 
           for i in {1..45}; do
-            sleep 60
+            sleep 30
             STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status runtime { ports { ip isIpPublic publicPort type } } } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
