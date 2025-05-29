@@ -23,3 +23,4 @@ def ingest_text_to_faiss(text, namespace=None):
     else:
         db = FAISS.from_documents(docs, embedding_model)
     db.save_local(db_path)
+    

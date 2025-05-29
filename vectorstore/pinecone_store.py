@@ -52,3 +52,4 @@ def ingest_pdf_file_to_pinecone(file_path, namespace=None):
     text = "\n".join(page.get_text() for page in doc)
     source = os.path.basename(file_path)
     ingest_pdf_text_to_pinecone(text, namespace=namespace, source=source)
+    

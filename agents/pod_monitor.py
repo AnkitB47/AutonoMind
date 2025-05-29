@@ -8,3 +8,4 @@ def is_runpod_live(runpod_url: str) -> bool:
         return r.status_code == 200
     except Exception:
         return False
+    

@@ -24,3 +24,4 @@ class RemoteImageNode(RunnableLambda):
         files = {'file': input['image']}
         res = requests.post(f"{self.endpoint}/vision", files=files)
         return {"text": res.json().get("text", "")}
+    
