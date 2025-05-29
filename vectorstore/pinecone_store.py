@@ -3,7 +3,7 @@ import os
 import fitz  # PyMuPDF
 from langchain_community.vectorstores import Pinecone as LangchainPinecone
 from langchain.embeddings import OpenAIEmbeddings
-from pinecone import Pinecone, ServerlessSpec
+from pinecone import Pinecone
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 

@@ -38,4 +38,3 @@ def handle_text(text):
     result_pc = search_pinecone(text)
     result_faiss = search_faiss(text)
     return f"Pinecone:\n{result_pc}\n\nFAISS:\n{result_faiss}"
-
