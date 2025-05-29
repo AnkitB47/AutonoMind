@@ -8,13 +8,15 @@ orjson
 
 # LangChain + LangGraph + Tracing
 langchain
-langchain-community
+langchain-community>=0.0.11
+langchain-pinecone>=0.0.3
+langchain-openai>=0.0.5
 langgraph
 langfuse
 prometheus-fastapi-instrumentator
 
 # RAG / Embeddings
-pinecone-client
+pinecone-client>=3.0.0
 openai
 tiktoken
 faiss-cpu
@@ -22,7 +24,7 @@ sentence-transformers
 transformers
 
 # Modalities
-pymupdf              # PDF
+pymupdf>=1.23.0      # PDF
 whisper              # Audio
 google-generativeai  # Image (Gemini)
 

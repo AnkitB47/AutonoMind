@@ -1,5 +1,5 @@
 # --- agents/rag_agent.py ---
-from vectorstore.pinecone_store import search_pinecone, ingest_pdf_to_pinecone
+from vectorstore.pinecone_store import search_pinecone, ingest_pdf_text_to_pinecone as ingest_pdf_to_pinecone
 from vectorstore.faiss_store import search_faiss
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from langchain.document_loaders import PyPDFLoader
