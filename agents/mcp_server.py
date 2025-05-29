@@ -4,12 +4,13 @@ from langgraph.graph import StateGraph
 from langchain.schema.runnable import RunnableLambda
 from agents import search_agent, rag_agent, translate_agent, plugin_loader
 import langfuse
+from app.config import settings
 
 # Initialize Langfuse client
 lf = langfuse.Langfuse(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    public_key=settings.LANGFUSE_PUBLIC_KEY,
+    secret_key=settings.LANGFUSE_SECRET_KEY,
+    host=settings.LANGFUSE_HOST
 )
 
 

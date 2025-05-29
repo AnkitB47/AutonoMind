@@ -6,9 +6,10 @@ from agents import mcp_server
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live
+from app.config import settings
 
 router = APIRouter(prefix="/input", tags=["input"])
-RUNPOD_URL = os.getenv("RUNPOD_URL", "")  # Ideally fetched from env or secret
+RUNPOD_URL = settings.RUNPOD_URL
 
 
 @router.post("/text")

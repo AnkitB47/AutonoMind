@@ -1,21 +1,22 @@
 # --- docker/Dockerfile.cpu ---
 FROM python:3.10-slim
 
-# Set working directory
 WORKDIR /workspace
 
 # Install Python dependencies
 COPY requirements-cpu.txt ./
 RUN pip install --no-cache-dir -r requirements-cpu.txt
 
-# Copy full project
+# Copy project source
 COPY . .
 
-# Ensure Python can import 'app' as a package
+# Ensure PYTHONPATH includes workspace
 ENV PYTHONPATH=/workspace
+
+ENV LANGCHAIN_TRACING_V2=true
+ENV LANGCHAIN_ENDPOINT=https://api.langchain.plus
 
 # Expose port
 EXPOSE 8080
 
-# Launch Streamlit
-CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableXsrfProtection=false"]
+CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]

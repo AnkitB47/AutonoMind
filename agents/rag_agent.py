@@ -17,24 +17,24 @@ async def process_file(file):
         loader = PyPDFLoader(path)
         docs = loader.load()
         text = docs[0].page_content
-        ingest_pdf_to_pinecone(text)
+        ingest_pdf_to_pinecone(text, namespace="pdf")
         ingest_text_to_faiss(text, namespace="pdf")
-        return f"✅ PDF ingested into Pinecone & FAISS."
+        return "✅ PDF ingested into Pinecone & FAISS."
 
     elif suffix in ["jpg", "jpeg", "png"]:
         extracted = extract_image_text(path)
         if extracted and len(extracted.split()) > 5:
             ingest_text_to_faiss(extracted, namespace="image")
-            return f"✅ Image description ingested into FAISS."
+            return "✅ Image description ingested into FAISS."
         else:
             description = describe_image(path)
             ingest_text_to_faiss(description, namespace="image")
-            return f"✅ Gemini description ingested into FAISS."
+            return "✅ Gemini description ingested into FAISS."
 
     return "❌ Unsupported file format."
 
 
-def handle_text(text):
+def handle_text(text: str):
     result_pc = search_pinecone(text)
     result_faiss = search_faiss(text)
     return f"Pinecone:\n{result_pc}\n\nFAISS:\n{result_faiss}"

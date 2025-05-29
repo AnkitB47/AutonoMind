@@ -11,6 +11,6 @@ __pycache__/
 !.env.example
 .vscode/
 .idea/
-Dockerfile.*
+Dockerfile.*    
 docker-compose.*
 langfuse_exports/

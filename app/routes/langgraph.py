@@ -3,9 +3,10 @@ import os
 from fastapi import APIRouter
 from langgraph.graph import StateGraph
 from langgraph_runner.node_wrappers import RemoteWhisperNode, RemoteImageNode
+from app.config import settings
 
 router = APIRouter(prefix="/graph", tags=["langgraph"])
-RUNPOD_URL = os.getenv("RUNPOD_URL", "")  # Replace or dynamically fetch
+RUNPOD_URL = settings.RUNPOD_URL  
 
 
 @router.post("/run")
