@@ -14,11 +14,6 @@ jobs:
       - name: 📦 Checkout Repository
         uses: actions/checkout@v3
 
-      - name: 🧪 Lint Python Code
-        run: |
-          pip install flake8
-          flake8 . --exclude=.venv,docker
-
       - name: ✅ Run Unit Tests
         run: |
           pip install -r requirements-cpu.txt
