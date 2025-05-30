@@ -29,48 +29,63 @@ jobs:
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
       - name: 🔍 Verify Image Exists on GHCR (Public)
-        run: |
-          docker manifest inspect ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest > /dev/null
+        run: docker manifest inspect ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest > /dev/null
 
       - name: 🚀 Launch GPU Pod via GraphQL API (Secure Cloud)
         id: launch_pod
         run: |
+          set -e
+
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
-          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\\", ports: \\\"8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ 
-            { key: OPENAI_API_KEY, value: \\\"{{ RUNPOD_SECRET_OPENAI_API_KEY }}\\\" },
-            { key: LANGCHAIN_API_KEY, value: \\\"{{ RUNPOD_SECRET_LANGCHAIN_API_KEY }}\\\" },
-            { key: PINECONE_API_KEY, value: \\\"{{ RUNPOD_SECRET_PINECONE_API_KEY }}\\\" },
-            { key: PINECONE_INDEX_NAME, value: \\\"{{ RUNPOD_SECRET_PINECONE_INDEX_NAME }}\\\" },
-            { key: PINECONE_INDEX_HOST, value: \\\"{{ RUNPOD_SECRET_PINECONE_INDEX_HOST }}\\\" },
-            { key: PINECONE_REGION, value: \\\"{{ RUNPOD_SECRET_PINECONE_REGION }}\\\" },
-            { key: LANGCHAIN_PROJECT, value: \\\"{{ RUNPOD_SECRET_LANGCHAIN_PROJECT }}\\\" },
-            { key: SERPAPI_API_KEY, value: \\\"{{ RUNPOD_SECRET_SERPAPI_API_KEY }}\\\" },
-            { key: GEMINI_API_KEY, value: \\\"{{ RUNPOD_SECRET_GEMINI_API_KEY }}\\\" },
-            { key: HF_TOKEN, value: \\\"{{ RUNPOD_SECRET_HF_TOKEN }}\\\" },
-            { key: GROQ_API_KEY, value: \\\"{{ RUNPOD_SECRET_GROQ_API_KEY }}\\\" },
-            { key: LANGFUSE_PUBLIC_KEY, value: \\\"{{ RUNPOD_SECRET_LANGFUSE_PUBLIC_KEY }}\\\" },
-            { key: LANGFUSE_SECRET_KEY, value: \\\"{{ RUNPOD_SECRET_LANGFUSE_SECRET_KEY }}\\\" },
-            { key: LANGFUSE_HOST, value: \\\"{{ RUNPOD_SECRET_LANGFUSE_HOST }}\\\" },
-            { key: USE_GPU, value: \\\"{{ RUNPOD_SECRET_USE_GPU }}\\\" },
-            { key: MODEL_PATH, value: \\\"{{ RUNPOD_SECRET_MODEL_PATH }}\\\" }
-          ] }) { id } }\"}"
+          read -r -d '' GRAPHQL_QUERY <<EOF
+{
+  "query": "mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\\", ports: \\\"8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [
+    { key: \\\"OPENAI_API_KEY\\\", value: \\\"{{ RUNPOD_SECRET_OPENAI_API_KEY }}\\\" },
+    { key: \\\"LANGCHAIN_API_KEY\\\", value: \\\"{{ RUNPOD_SECRET_LANGCHAIN_API_KEY }}\\\" },
+    { key: \\\"PINECONE_API_KEY\\\", value: \\\"{{ RUNPOD_SECRET_PINECONE_API_KEY }}\\\" },
+    { key: \\\"PINECONE_INDEX_NAME\\\", value: \\\"{{ RUNPOD_SECRET_PINECONE_INDEX_NAME }}\\\" },
+    { key: \\\"PINECONE_INDEX_HOST\\\", value: \\\"{{ RUNPOD_SECRET_PINECONE_INDEX_HOST }}\\\" },
+    { key: \\\"PINECONE_REGION\\\", value: \\\"{{ RUNPOD_SECRET_PINECONE_REGION }}\\\" },
+    { key: \\\"LANGCHAIN_PROJECT\\\", value: \\\"{{ RUNPOD_SECRET_LANGCHAIN_PROJECT }}\\\" },
+    { key: \\\"SERPAPI_API_KEY\\\", value: \\\"{{ RUNPOD_SECRET_SERPAPI_API_KEY }}\\\" },
+    { key: \\\"GEMINI_API_KEY\\\", value: \\\"{{ RUNPOD_SECRET_GEMINI_API_KEY }}\\\" },
+    { key: \\\"HF_TOKEN\\\", value: \\\"{{ RUNPOD_SECRET_HF_TOKEN }}\\\" },
+    { key: \\\"GROQ_API_KEY\\\", value: \\\"{{ RUNPOD_SECRET_GROQ_API_KEY }}\\\" },
+    { key: \\\"LANGFUSE_PUBLIC_KEY\\\", value: \\\"{{ RUNPOD_SECRET_LANGFUSE_PUBLIC_KEY }}\\\" },
+    { key: \\\"LANGFUSE_SECRET_KEY\\\", value: \\\"{{ RUNPOD_SECRET_LANGFUSE_SECRET_KEY }}\\\" },
+    { key: \\\"LANGFUSE_HOST\\\", value: \\\"{{ RUNPOD_SECRET_LANGFUSE_HOST }}\\\" },
+    { key: \\\"USE_GPU\\\", value: \\\"{{ RUNPOD_SECRET_USE_GPU }}\\\" },
+    { key: \\\"MODEL_PATH\\\", value: \\\"{{ RUNPOD_SECRET_MODEL_PATH }}\\\" }
+  ] }) { id } }"
+}
+EOF
 
           echo "✅ GraphQL query being sent:"
           echo "$GRAPHQL_QUERY"
 
-          response=$(curl -s -X POST "https://api.runpod.io/graphql" \
+          HTTP_RESPONSE=$(mktemp)
+          HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$HTTP_RESPONSE" -X POST "https://api.runpod.io/graphql" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
             -d "$GRAPHQL_QUERY")
 
-          echo "📡 Full launch response: $response"
-          POD_ID=$(echo "$response" | jq -r '.data.podFindAndDeployOnDemand.id')
+          RESPONSE=$(cat "$HTTP_RESPONSE")
+          rm "$HTTP_RESPONSE"
 
-          if [ -z "$POD_ID" ] || [ "$POD_ID" = "null" ]; then
-            echo "❌ Failed to launch pod. Check GPU availability and image visibility."
-            echo "$response"
+          echo "📡 Full launch response: $RESPONSE"
+
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "❌ HTTP error: $HTTP_STATUS"
+            exit 1
+          fi
+
+          POD_ID=$(echo "$RESPONSE" | jq -r '.data.podFindAndDeployOnDemand.id // empty')
+
+          if [ -z "$POD_ID" ]; then
+            echo "❌ Failed to launch pod. Check GPU availability, image visibility, and secret names."
+            echo "$RESPONSE"
             exit 1
           fi
 
@@ -92,13 +107,10 @@ jobs:
               -H "Content-Type: application/json" \
               -d "$STATUS_QUERY")
 
-            # Check if runtime.ports exists and is a non-empty array
             PORTS_EXIST=$(echo "$response" | jq -e '.data.pod.runtime.ports | type == "array" and length > 0' >/dev/null 2>&1 && echo "yes" || echo "no")
 
             if [ "$PORTS_EXIST" = "yes" ]; then
-              # Safely extract the first public port 8080 with a public IP
               PORT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.isIpPublic == true and .publicPort == 8080)' || true)
-
               PUBLIC_IP=$(echo "$PORT_INFO" | jq -r '.ip // empty')
               PUBLIC_PORT=$(echo "$PORT_INFO" | jq -r '.publicPort // empty')
 
@@ -112,7 +124,7 @@ jobs:
               fi
             fi
 
-            echo "🔄 Status check $i: $STATUS"
+            echo "🔄 Status check $i: still waiting..."
           done
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
