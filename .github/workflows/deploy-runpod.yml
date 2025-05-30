@@ -41,43 +41,19 @@ jobs:
           GHCR_IMAGE="ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
-          cat > query.json <<EOF
-{
-  "query": "mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\"NVIDIA RTX A4500\\", name: \\"__POD_NAME__\\", imageName: \\"__IMAGE__\\", ports: \\"8080/http\\", volumeMountPath: \\"/runpod\\", env: [
-    { key: \\"OPENAI_API_KEY\\", value: \\"${{ secrets.OPENAI_API_KEY }}\\" },
-    { key: \\"LANGCHAIN_API_KEY\\", value: \\"${{ secrets.LANGCHAIN_API_KEY }}\\" },
-    { key: \\"PINECONE_API_KEY\\", value: \\"${{ secrets.PINECONE_API_KEY }}\\" },
-    { key: \\"PINECONE_INDEX_NAME\\", value: \\"${{ secrets.PINECONE_INDEX_NAME }}\\" },
-    { key: \\"PINECONE_INDEX_HOST\\", value: \\"${{ secrets.PINECONE_INDEX_HOST }}\\" },
-    { key: \\"PINECONE_REGION\\", value: \\"${{ secrets.PINECONE_REGION }}\\" },
-    { key: \\"LANGCHAIN_PROJECT\\", value: \\"${{ secrets.LANGCHAIN_PROJECT }}\\" },
-    { key: \\"SERPAPI_API_KEY\\", value: \\"${{ secrets.SERPAPI_API_KEY }}\\" },
-    { key: \\"GEMINI_API_KEY\\", value: \\"${{ secrets.GEMINI_API_KEY }}\\" },
-    { key: \\"HF_TOKEN\\", value: \\"${{ secrets.HF_TOKEN }}\\" },
-    { key: \\"GROQ_API_KEY\\", value: \\"${{ secrets.GROQ_API_KEY }}\\" },
-    { key: \\"LANGFUSE_PUBLIC_KEY\\", value: \\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\" },
-    { key: \\"LANGFUSE_SECRET_KEY\\", value: \\"${{ secrets.LANGFUSE_SECRET_KEY }}\\" },
-    { key: \\"LANGFUSE_HOST\\", value: \\"${{ secrets.LANGFUSE_HOST }}\\" },
-    { key: \\"USE_GPU\\", value: \\"${{ secrets.USE_GPU }}\\" },
-    { key: \\"MODEL_PATH\\", value: \\"${{ secrets.MODEL_PATH }}\\" }
-  ] }) { id } }"
-}
-EOF
-
-          sed -i "s/__POD_NAME__/$UNIQUE_POD_NAME/g" query.json
-          sed -i "s/__IMAGE__/$GHCR_IMAGE/g" query.json
+          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"$GHCR_IMAGE\\\", ports: \\\"8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ { key: \\\"OPENAI_API_KEY\\\", value: \\\"${{ secrets.OPENAI_API_KEY }}\\\" }, { key: \\\"LANGCHAIN_API_KEY\\\", value: \\\"${{ secrets.LANGCHAIN_API_KEY }}\\\" }, { key: \\\"PINECONE_API_KEY\\\", value: \\\"${{ secrets.PINECONE_API_KEY }}\\\" }, { key: \\\"PINECONE_INDEX_NAME\\\", value: \\\"${{ secrets.PINECONE_INDEX_NAME }}\\\" }, { key: \\\"PINECONE_INDEX_HOST\\\", value: \\\"${{ secrets.PINECONE_INDEX_HOST }}\\\" }, { key: \\\"PINECONE_REGION\\\", value: \\\"${{ secrets.PINECONE_REGION }}\\\" }, { key: \\\"LANGCHAIN_PROJECT\\\", value: \\\"${{ secrets.LANGCHAIN_PROJECT }}\\\" }, { key: \\\"SERPAPI_API_KEY\\\", value: \\\"${{ secrets.SERPAPI_API_KEY }}\\\" }, { key: \\\"GEMINI_API_KEY\\\", value: \\\"${{ secrets.GEMINI_API_KEY }}\\\" }, { key: \\\"HF_TOKEN\\\", value: \\\"${{ secrets.HF_TOKEN }}\\\" }, { key: \\\"GROQ_API_KEY\\\", value: \\\"${{ secrets.GROQ_API_KEY }}\\\" }, { key: \\\"LANGFUSE_PUBLIC_KEY\\\", value: \\\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\\" }, { key: \\\"LANGFUSE_SECRET_KEY\\\", value: \\\"${{ secrets.LANGFUSE_SECRET_KEY }}\\\" }, { key: \\\"LANGFUSE_HOST\\\", value: \\\"${{ secrets.LANGFUSE_HOST }}\\\" }, { key: \\\"USE_GPU\\\", value: \\\"${{ secrets.USE_GPU }}\\\" }, { key: \\\"MODEL_PATH\\\", value: \\\"${{ secrets.MODEL_PATH }}\\\" } ] }) { id } }\"}"
 
           echo "✅ Sending GraphQL mutation:"
-          cat query.json
+          echo "$GRAPHQL_QUERY"
 
           HTTP_RESPONSE=$(mktemp)
           HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$HTTP_RESPONSE" -X POST "https://api.runpod.io/graphql" \
             -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d @query.json)
+            -d "$GRAPHQL_QUERY")
 
           RESPONSE=$(cat "$HTTP_RESPONSE")
-          rm "$HTTP_RESPONSE" query.json
+          rm "$HTTP_RESPONSE"
 
           echo "📡 Full launch response: $RESPONSE"
 
@@ -97,6 +73,7 @@ EOF
           echo "✅ Pod ID: $POD_ID"
           echo "RUNPOD_POD_ID=$POD_ID" >> $GITHUB_ENV
           echo "pod_id=$POD_ID" >> $GITHUB_OUTPUT
+
 
 
       - name: 🔄 Poll Pod Status via GraphQL
