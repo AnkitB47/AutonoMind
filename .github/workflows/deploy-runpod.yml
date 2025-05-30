@@ -38,7 +38,24 @@ jobs:
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
-          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\\", ports: \\\"8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ { key: OPENAI_API_KEY, value: \\\"${{ secrets.OPENAI_API_KEY }}\\\" }, { key: LANGCHAIN_API_KEY, value: \\\"${{ secrets.LANGCHAIN_API_KEY }}\\\" }, { key: PINECONE_API_KEY, value: \\\"${{ secrets.PINECONE_API_KEY }}\\\" }, { key: PINECONE_INDEX_NAME, value: \\\"${{ secrets.PINECONE_INDEX_NAME }}\\\" }, { key: PINECONE_INDEX_HOST, value: \\\"${{ secrets.PINECONE_INDEX_HOST }}\\\" }, { key: PINECONE_REGION, value: \\\"${{ secrets.PINECONE_REGION }}\\\" }, { key: LANGCHAIN_PROJECT, value: \\\"${{ secrets.LANGCHAIN_PROJECT }}\\\" }, { key: SERPAPI_API_KEY, value: \\\"${{ secrets.SERPAPI_API_KEY }}\\\" }, { key: GEMINI_API_KEY, value: \\\"${{ secrets.GEMINI_API_KEY }}\\\" }, { key: HF_TOKEN, value: \\\"${{ secrets.HF_TOKEN }}\\\" }, { key: GROQ_API_KEY, value: \\\"${{ secrets.GROQ_API_KEY }}\\\" }, { key: LANGFUSE_PUBLIC_KEY, value: \\\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\\" }, { key: LANGFUSE_SECRET_KEY, value: \\\"${{ secrets.LANGFUSE_SECRET_KEY }}\\\" }, { key: LANGFUSE_HOST, value: \\\"${{ secrets.LANGFUSE_HOST }}\\\" }, { key: USE_GPU, value: \\\"True\\\" }, { key: MODEL_PATH, value: \\\"${{ secrets.MODEL_PATH }}\\\" } ] }) { id } }\"}"
+          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest\\\", ports: \\\"8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ 
+            { key: OPENAI_API_KEY, value: \\\"{{ RUNPOD_SECRET_OPENAI_API_KEY }}\\\" },
+            { key: LANGCHAIN_API_KEY, value: \\\"{{ RUNPOD_SECRET_LANGCHAIN_API_KEY }}\\\" },
+            { key: PINECONE_API_KEY, value: \\\"{{ RUNPOD_SECRET_PINECONE_API_KEY }}\\\" },
+            { key: PINECONE_INDEX_NAME, value: \\\"{{ RUNPOD_SECRET_PINECONE_INDEX_NAME }}\\\" },
+            { key: PINECONE_INDEX_HOST, value: \\\"{{ RUNPOD_SECRET_PINECONE_INDEX_HOST }}\\\" },
+            { key: PINECONE_REGION, value: \\\"{{ RUNPOD_SECRET_PINECONE_REGION }}\\\" },
+            { key: LANGCHAIN_PROJECT, value: \\\"{{ RUNPOD_SECRET_LANGCHAIN_PROJECT }}\\\" },
+            { key: SERPAPI_API_KEY, value: \\\"{{ RUNPOD_SECRET_SERPAPI_API_KEY }}\\\" },
+            { key: GEMINI_API_KEY, value: \\\"{{ RUNPOD_SECRET_GEMINI_API_KEY }}\\\" },
+            { key: HF_TOKEN, value: \\\"{{ RUNPOD_SECRET_HF_TOKEN }}\\\" },
+            { key: GROQ_API_KEY, value: \\\"{{ RUNPOD_SECRET_GROQ_API_KEY }}\\\" },
+            { key: LANGFUSE_PUBLIC_KEY, value: \\\"{{ RUNPOD_SECRET_LANGFUSE_PUBLIC_KEY }}\\\" },
+            { key: LANGFUSE_SECRET_KEY, value: \\\"{{ RUNPOD_SECRET_LANGFUSE_SECRET_KEY }}\\\" },
+            { key: LANGFUSE_HOST, value: \\\"{{ RUNPOD_SECRET_LANGFUSE_HOST }}\\\" },
+            { key: USE_GPU, value: \\\"{{ RUNPOD_SECRET_USE_GPU }}\\\" },
+            { key: MODEL_PATH, value: \\\"{{ RUNPOD_SECRET_MODEL_PATH }}\\\" }
+          ] }) { id } }\"}"
 
           echo "✅ GraphQL query being sent:"
           echo "$GRAPHQL_QUERY"
