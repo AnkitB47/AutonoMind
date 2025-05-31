@@ -19,4 +19,4 @@ RUN mkdir -p /data
 # Expose port
 EXPOSE 8080
 
-CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
+CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--server.headless=true"]
