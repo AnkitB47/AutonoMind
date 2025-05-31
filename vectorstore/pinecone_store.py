@@ -31,9 +31,9 @@ def search_pinecone(query, namespace=None):
 
 
 def upsert_document(text, namespace=None, metadata=None):
-    docs = [Document(page_content=chunk, metadata=metadata or {}) 
+    docs = [Document(page_content=chunk, metadata=metadata or {})
             for chunk in text_splitter.split_text(text)]
-    
+
     vectorstore = PineconeVectorStore.from_existing_index(
         index_name=index_name,
         embedding=embedding_model,

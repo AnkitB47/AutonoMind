@@ -4,7 +4,6 @@ FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-
 ENV USE_GPU=True
 ENV PYTHONPATH=/workspace
 
@@ -30,6 +29,9 @@ RUN pip install torch==2.2.2 torchvision torchaudio --index-url https://download
 
 # Copy code
 COPY . .
+
+# Ensure FAISS index path exists
+RUN mkdir -p /data
 
 EXPOSE 8080
 

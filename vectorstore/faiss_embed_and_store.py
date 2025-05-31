@@ -1,7 +1,7 @@
 # --- vectorstore/faiss_embed_and_store.py ---
 import os
 from langchain.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from app.config import Settings

@@ -6,6 +6,7 @@ langchain
 langchain-community>=0.0.11
 langchain-pinecone>=0.0.3
 langchain-openai>=0.0.5
+langchain_openai
 langgraph
 pinecone-client>=3.0.0
 openai
