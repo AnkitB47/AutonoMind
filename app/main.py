@@ -1,49 +1,38 @@
 # --- app/main.py ---
-
 import streamlit as st
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
+
 from app.routes import input_handler, file_upload, langgraph
 
-# --- Streamlit App Config ---
-st.set_page_config(
-    page_title="AutonoMind AI",
-    page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
+# FastAPI backend setup
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# --- Header UI ---
-st.markdown("<h1 style='text-align: center;'>🤖 AutonoMind AI</h1>", unsafe_allow_html=True)
-st.markdown("### Agentic Multimodal Assistant powered by LangGraph, Pinecone, FAISS & Gemini")
-st.success("Upload a PDF/Image or ask a query via chat for instant answers!")
+# Mount all API routers
+app.include_router(input_handler.router)
+app.include_router(file_upload.router)
+app.include_router(langgraph.router)
 
-# --- Sidebar ---
-with st.sidebar:
-    st.image("https://i.imgur.com/EdkKp0g.png", caption="AutonoMind", use_column_width=True)
-    st.markdown("---")
-    st.subheader("📁 Tools")
-    st.markdown("- PDF Search (Pinecone)")
-    st.markdown("- Image Understanding (Gemini)")
-    st.markdown("- Web Search (SerpAPI)")
-    st.markdown("- Code/Math (Groq/DeepSeek)")
-    st.markdown("- Translation (Gemini/OpenAI)")
-    st.markdown("---")
-    st.info("Built with ❤️ using LangChain + LangGraph")
+# --- Streamlit frontend setup ---
+st.set_page_config(page_title="AutonoMind AI", layout="wide")
+st.title("🤖 AutonoMind AI - Agentic Multimodal Assistant")
+st.info("Upload PDF/Image or Ask Anything")
 
-# --- Routing Tabs ---
-tabs = st.tabs(["📤 Upload", "💬 Chat", "📊 Logs"])
+# Sidebar navigation
+option = st.sidebar.radio("🧭 Navigate", ["Home", "Text/Voice/Image Input", "File Upload", "LangGraph Controls"])
 
-# --- File Upload Tab ---
-with tabs[0]:
-    file_upload.render()
-
-# --- Chat Interface Tab ---
-with tabs[1]:
+if option == "Text/Voice/Image Input":
     input_handler.render()
-
-# --- Logs or Dev Tools ---
-with tabs[2]:
+elif option == "File Upload":
+    file_upload.render()
+elif option == "LangGraph Controls":
     langgraph.render()
-
-# --- Footer ---
-st.markdown("---")
-st.caption("© 2025 AutonoMind AI • Built by Ankit Bhardwaj")
+else:
+    st.markdown("👋 Welcome to AutonoMind AI! Use the sidebar to interact with the app.")
