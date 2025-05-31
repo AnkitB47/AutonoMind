@@ -53,7 +53,6 @@ langfuse_exports/
 langfuse.db
 
 # === Model Downloads ===
-models/
 checkpoints/
 cache/
 *.pt
