@@ -5,6 +5,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+ENV USE_GPU=True
+ENV PYTHONPATH=/workspace
+
 WORKDIR /workspace
 
 # System dependencies
@@ -27,9 +30,6 @@ RUN pip install torch==2.2.2 torchvision torchaudio --index-url https://download
 
 # Copy code
 COPY . .
-
-ENV USE_GPU=True
-ENV PYTHONPATH=/workspace
 
 EXPOSE 8080
 
