@@ -2,7 +2,6 @@
 import streamlit as st
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-
 from app.routes import input_handler, file_upload, langgraph
 
 # FastAPI backend setup
