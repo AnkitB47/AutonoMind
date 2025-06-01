@@ -8,7 +8,10 @@ import tempfile
 
 
 async def process_file(file):
-    suffix = file.filename.split(".")[-1].lower()
+    # ✅ Support both Streamlit (file.name) and FastAPI (file.filename)
+    name = getattr(file, "filename", None) or getattr(file, "name", "unknown.unknown")
+    suffix = name.split(".")[-1].lower()
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
         tmp.write(await file.read())
         path = tmp.name
