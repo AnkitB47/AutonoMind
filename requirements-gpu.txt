@@ -27,6 +27,7 @@ transformers
 
 # Modalities
 pymupdf>=1.23.0      # PDF
+pypdf
 openai-whisper            # Audio
 google-generativeai  # Image (Gemini)
 
