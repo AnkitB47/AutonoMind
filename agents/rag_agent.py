@@ -5,15 +5,19 @@ from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from langchain.document_loaders import PyPDFLoader
 from models.gemini_vision import extract_image_text, describe_image
 import tempfile
+import inspect
 
 
 async def process_file(file):
-    # ✅ Support both Streamlit (file.name) and FastAPI (file.filename)
     name = getattr(file, "filename", None) or getattr(file, "name", "unknown.unknown")
     suffix = name.split(".")[-1].lower()
 
+    # ✅ Handle Streamlit (sync) or FastAPI (async)
+    read_method = file.read
+    data = await read_method() if inspect.iscoroutinefunction(read_method) else read_method()
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
-        tmp.write(await file.read())
+        tmp.write(data)
         path = tmp.name
 
     if suffix == "pdf":
