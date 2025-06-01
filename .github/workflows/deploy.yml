@@ -2,7 +2,7 @@
 name: 🚀 CI/CD - Deploy to Fly.io (CPU)
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -35,4 +35,4 @@ jobs:
 
       - name: 🚀 Deploy Docker Image to Fly.io (via fly.cpu.toml)
         run: |
-          flyctl deploy -c fly.cpu.toml --remote-only --no-cache
+          flyctl deploy -c fly.toml --remote-only --no-cache
