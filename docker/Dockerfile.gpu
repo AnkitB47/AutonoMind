@@ -33,6 +33,8 @@ COPY . .
 # Ensure FAISS index path exists
 RUN mkdir -p /data
 
-EXPOSE 8080
+# Expose both ports
+EXPOSE 8000 8080
 
-CMD ["streamlit", "run", "app/main.py", "--server.port=8080", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--server.headless=true"]
+# Run FastAPI and Streamlit together
+CMD ["bash", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 & streamlit run app/main.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"]

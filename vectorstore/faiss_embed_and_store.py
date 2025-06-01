@@ -21,7 +21,7 @@ def ingest_text_to_faiss(text: str, namespace: str = None):
     docs = [Document(page_content=chunk, metadata={"source": namespace or "generic"}) for chunk in chunks]
 
     if os.path.exists(FAISS_INDEX_PATH):
-        db = FAISS.load_local(FAISS_INDEX_PATH, embedding_model)
+        db = FAISS.load_local(FAISS_INDEX_PATH, embedding_model, allow_dangerous_deserialization=True)
         db.add_documents(docs)
     else:
         db = FAISS.from_documents(docs, embedding_model)
