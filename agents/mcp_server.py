@@ -7,7 +7,6 @@ from agents import search_agent, rag_agent, translate_agent, plugin_loader
 from app.config import Settings
 
 from langfuse import Langfuse
-from langfuse.client import Trace  # Optional, for clarity
 
 settings = Settings()
 
