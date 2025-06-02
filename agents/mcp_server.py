@@ -1,7 +1,7 @@
 # --- agents/mcp_server.py ---
 from typing import TypedDict
 from langgraph.graph import StateGraph
-from langchain.schema.runnable import RunnableLambda
+from langchain_core.runnables import RunnableLambda
 from agents import search_agent, rag_agent, translate_agent, plugin_loader
 from app.config import Settings
 

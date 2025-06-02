@@ -1,12 +1,16 @@
 # --- agents/translate_agent.py ---
-from langchain.chains.llm import LLMChain
-from langchain.prompts import PromptTemplate
-from langchain.llms import OpenAI
+from langchain_community.llms import OpenAI
+from langchain_core.prompts import PromptTemplate
+from langchain.chains import LLMChain  # still valid for simple chains
 
-
-def translate_response(text, target_lang):
-    if target_lang == "en":
+def translate_response(text: str, target_lang: str) -> str:
+    if target_lang.lower() == "en":
         return text
+
     prompt = PromptTemplate.from_template("Translate this to {lang}: {text}")
     chain = LLMChain(llm=OpenAI(), prompt=prompt)
-    return chain.run(lang=target_lang, text=text)
+
+    try:
+        return chain.run(lang=target_lang, text=text)
+    except Exception as e:
+        return f"⚠️ Translation failed: {str(e)}"

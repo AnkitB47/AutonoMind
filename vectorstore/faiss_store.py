@@ -1,8 +1,8 @@
 # --- vectorstore/faiss_store.py ---
 import os
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_openai import OpenAIEmbeddings
-from langchain.schema import Document
+from langchain_core.documents import Document
 from app.config import Settings
 
 # Load environment settings

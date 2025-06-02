@@ -20,4 +20,4 @@ RUN mkdir -p /data
 EXPOSE 8000 8080
 
 # Run FastAPI and Streamlit together
-CMD ["bash", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 & streamlit run app/main.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"]
+CMD ["bash", "-c", "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"]

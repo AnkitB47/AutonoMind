@@ -1,45 +1,45 @@
-# --- requirements-gpu.txt ---
-# Core
+# --- Core Frameworks ---
 streamlit
 fastapi
 uvicorn
 python-multipart
 python-dotenv
+aiofiles
+httpx
 orjson
+requests
 
-# LangChain + LangGraph + Tracing
-langchain
+# --- NumPy Compatibility ---
+numpy<2.0.0
+
+# --- LangChain Ecosystem ---
+langchain>=0.2.0
 langchain-community>=0.0.11
 langchain-pinecone>=0.0.3
 langchain-openai>=0.0.5
 langchain_openai
-langgraph
-langfuse
-prometheus-fastapi-instrumentator
+langgraph>=0.0.18
+# langfuse removed
 
-# RAG / Embeddings
+# --- RAG / Embeddings ---
 pinecone-client>=3.0.0
 openai
 tiktoken
-faiss-cpu
+faiss-cpu==1.7.4
 sentence-transformers
-transformers
+transformers>=4.40.0
 
-# Modalities
-pymupdf>=1.23.0      # PDF
+# --- Multimodal AI ---
+openai-whisper
+google-generativeai
+pymupdf>=1.23.0
 pypdf
-openai-whisper            # Audio
-google-generativeai  # Image (Gemini)
 
-# Utilities
-requests
-ipython
+# --- Development & Quality ---
 black
 flake8
 autopep8
+ipython
 tenacity
-aiofiles
-httpx
-pydantic>=1.10
 jinja2
 python-socketio

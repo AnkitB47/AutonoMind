@@ -5,7 +5,7 @@ from app.config import Settings
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
 # Load environment settings
