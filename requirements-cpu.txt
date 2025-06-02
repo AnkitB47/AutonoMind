@@ -14,11 +14,13 @@ numpy<2.0.0
 
 # --- LangChain Ecosystem ---
 langchain>=0.2.0
+langchain-core>=0.1.48
 langchain-community>=0.0.11
 langchain-pinecone>=0.0.3
 langchain-openai>=0.0.5
-langchain_openai
-langgraph>=0.0.18  # Compatible with current LangGraph workflows
+langchain-openai
+langgraph>=0.0.18
+langchain-text-splitters>=0.0.1
 
 # --- RAG / Embeddings ---
 pinecone-client>=3.0.0

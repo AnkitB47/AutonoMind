@@ -1,7 +1,7 @@
 # --- agents/translate_agent.py ---
 from langchain_community.llms import OpenAI
 from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain  # still valid for simple chains
+from langchain_core.chains import LLMChain
 
 def translate_response(text: str, target_lang: str) -> str:
     if target_lang.lower() == "en":
