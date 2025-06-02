@@ -1,14 +1,20 @@
-# --- docker/Dockerfile.cpu ---
-FROM python:3.10-slim
+# --- docker/Dockerfile.cpu (FAISS FIXED) ---
+FROM continuumio/miniconda3:latest
 
 # Ensure PYTHONPATH includes workspace
 ENV PYTHONPATH=/workspace
-
 WORKDIR /workspace
 
-# Install Python dependencies
-COPY requirements-cpu.txt ./
-RUN pip install --no-cache-dir -r requirements-cpu.txt
+# Create and activate a new environment
+RUN conda create -n appenv python=3.10 -y
+SHELL ["conda", "run", "-n", "appenv", "/bin/bash", "-c"]
+
+# Install FAISS from conda (precompiled binary)
+RUN conda install -n appenv -c pytorch faiss-cpu -y
+
+# Copy and install Python requirements
+COPY requirements-cpu.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project source
 COPY . .
@@ -16,8 +22,8 @@ COPY . .
 # Ensure FAISS index path exists
 RUN mkdir -p /data
 
-# Expose both ports
+# Expose ports
 EXPOSE 8000 8080
 
-# Run FastAPI and Streamlit together
-CMD ["bash", "-c", "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"]
+# Run FastAPI + Streamlit
+CMD conda run -n appenv bash -c "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"
