@@ -46,10 +46,45 @@ async def handle_image_input(file: UploadFile = File(...), lang: str = "en"):
 
 
 def render():
-    st.subheader("📥 Input Handler")
-    query = st.text_input("Enter your question:")
-    lang = st.selectbox("Select language:", ["en", "de", "fr", "hi"])
+    st.subheader("📥 Ask via Text, Voice or Image")
+    lang = st.selectbox("🌐 Choose Language:", ["en", "de", "fr", "hi"])
 
-    if st.button("Ask"):
-        result = mcp_server.route_with_langgraph(query, lang)
-        st.success(result)
+    # --- Text Input ---
+    with st.expander("💬 Text Input"):
+        query = st.text_input("Type your question")
+        if st.button("Ask via Text") and query:
+            with st.spinner("Thinking..."):
+                result = mcp_server.route_with_langgraph(query, lang)
+                st.success(result)
+
+    # --- Voice Input ---
+    with st.expander("🎤 Voice Input (WAV only)"):
+        audio_file = st.file_uploader("Upload voice query", type=["wav"], key="voice_input")
+        if audio_file and st.button("Ask via Voice"):
+            with st.spinner("Transcribing..."):
+                audio_bytes = audio_file.read()
+                if is_runpod_live(RUNPOD_URL):
+                    res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": audio_bytes})
+                    query = res.json().get("text", "")
+                else:
+                    query = transcribe_audio(audio_bytes)
+
+                st.info(f"🎧 Transcribed Text: `{query}`")
+                result = mcp_server.route_with_langgraph(query, lang)
+                st.success(result)
+
+    # --- Image Input ---
+    with st.expander("🖼️ Image Input (PNG, JPG)"):
+        image_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"], key="image_input")
+        if image_file and st.button("Ask via Image"):
+            with st.spinner("Extracting from image..."):
+                image_bytes = image_file.read()
+                if is_runpod_live(RUNPOD_URL):
+                    res = requests.post(f"{RUNPOD_URL}/vision", files={"file": image_bytes})
+                    query = res.json().get("text", "")
+                else:
+                    query = extract_image_text(image_bytes)
+
+                st.info(f"📝 Extracted Text: `{query}`")
+                result = mcp_server.route_with_langgraph(query, lang)
+                st.success(result)

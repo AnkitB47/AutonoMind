@@ -44,4 +44,4 @@ async def process_file(file):
 def handle_text(text: str):
     result_pc = search_pinecone(text)
     result_faiss = search_faiss(text)
-    return f"Pinecone:\n{result_pc}\n\nFAISS:\n{result_faiss}"
+    return f"Pinecone:\n{result_pc or 'No match found'}\n\nFAISS:\n{result_faiss or 'No match found'}"

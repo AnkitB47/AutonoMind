@@ -23,9 +23,9 @@ st.set_page_config(page_title="AutonoMind AI", layout="wide")
 st.title("🤖 AutonoMind AI - Agentic Multimodal Assistant")
 st.info("Upload a file or ask something. All in one place.")
 
-st.header("🗣️ Text / Voice / Image Input")
-input_handler.render()
-
-st.markdown("---")
 st.header("📤 File Upload (PDF / Image)")
 file_upload.render()
+st.markdown("---")
+
+st.header("🗣️ Text / Voice / Image Input")
+input_handler.render()

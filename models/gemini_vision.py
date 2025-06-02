@@ -5,16 +5,12 @@ import base64
 import requests
 from PIL import Image
 from app.config import Settings
-
-
-try:
-    from google.generativeai import GenerativeModel
-except ImportError:
-    GenerativeModel = None
-
+from google.generativeai import configure, GenerativeModel
 
 # Load environment settings
 settings = Settings()
+
+configure(api_key=settings.GEMINI_API_KEY)
 
 
 def extract_image_text(path: str) -> str:
