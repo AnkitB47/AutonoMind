@@ -82,3 +82,30 @@ def describe_image(path: str) -> str:
         return response.text
     except Exception as e:
         return f"Exception during image description: {e}"
+
+
+def summarize_text_gemini(text: str, query: str = "") -> str:
+    """
+    Summarize given text based on the query using Gemini-Pro text model.
+    """
+    if not GenerativeModel:
+        return "❌ google-generativeai not installed."
+
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        return "❌ GEMINI_API_KEY not set."
+
+    try:
+        prompt = (
+            f"Summarize the following text relevant to the query: '{query}'\n\n{text}"
+            if query else
+            f"Summarize the following text:\n\n{text}"
+        )
+
+        model = GenerativeModel("gemini-pro", api_key=api_key)
+        response = model.generate_content(prompt)
+
+        return response.text.strip()
+    except Exception as e:
+        return f"❌ Gemini summarization failed: {str(e)}"
+
