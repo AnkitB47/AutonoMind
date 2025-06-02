@@ -23,7 +23,7 @@ def load_or_create_faiss():
 
     if os.path.exists(FAISS_INDEX_PATH):
         print(f"✅ Loading FAISS index from {FAISS_INDEX_PATH}")
-        store = FAISS.load_local(FAISS_INDEX_PATH, embedding_model)
+        store = FAISS.load_local(FAISS_INDEX_PATH, embedding_model, allow_dangerous_deserialization=True)
     else:
         print(f"⚠️  FAISS index not found. Creating dummy index at {FAISS_INDEX_PATH}")
         generate_faiss_index(["This is a fallback document."])
