@@ -8,49 +8,49 @@ from langfuse import Langfuse
 
 settings = Settings()
 
-
+# ✅ Langfuse instance
 lf = Langfuse(
     public_key=settings.LANGFUSE_PUBLIC_KEY,
     secret_key=settings.LANGFUSE_SECRET_KEY,
     host=settings.LANGFUSE_HOST
 )
 
-
+# ✅ LangGraph input state type
 class InputState(TypedDict):
     input: str
     lang: str
 
-
+# ✅ LangGraph routing logic
 def route_with_langgraph(text: str, lang: str = "en"):
     trace = lf.trace(name="AutonoMind Agentic Query")
-    trace.input = {"query": text, "lang": lang}
+    trace.update(input={"query": text, "lang": lang})
 
     graph = StateGraph(InputState)
 
-
+    # --- Node 1: Classify and route query ---
     def classify_and_route(state: InputState):
         query = state.get("input", "")
-        with trace.span() as span:
-            span.name = "Classify & Route"
-            span.input = {"user_query": query}
+        trace.log_event(level="INFO", message="Step: Classify & Route")
+        trace.update(input={"user_query": query})
 
-            if any(word in query.lower() for word in ["pdf", "document", "image"]):
-                span.output = {"agent": "RAG"}
-                result = rag_agent.handle_text(query)
-            else:
-                span.output = {"agent": "Search"}
-                result = search_agent.handle_query(query)
+        if any(word in query.lower() for word in ["pdf", "document", "image"]):
+            trace.log_event(level="INFO", message="→ RAG Agent selected")
+            result = rag_agent.handle_text(query)
+        else:
+            trace.log_event(level="INFO", message="→ Search Agent selected")
+            result = search_agent.handle_query(query)
 
+        trace.update(output={"intermediate_result": result})
         return {"input": result, "lang": state.get("lang")}
 
-
+    # --- Node 2: Translate response ---
     def translate_output(state: InputState):
-        with trace.span() as span:
-            span.name = "Translate Output"
-            result = translate_agent.translate_response(state["input"], state["lang"])
-            span.output = {"translated_response": result}
+        trace.log_event(level="INFO", message="Step: Translate Output")
+        result = translate_agent.translate_response(state["input"], state["lang"])
+        trace.update(output={"translated_response": result})
         return result
 
+    # --- Build LangGraph ---
     graph.add_node("route", RunnableLambda(classify_and_route))
     graph.add_node("translate", RunnableLambda(translate_output))
 
