@@ -77,16 +77,27 @@ jobs:
       - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
         run: |
+          set -e
+
+          # Install jq if not present
+          sudo apt-get update && sudo apt-get install -y jq
+
           POD_ID="${{ steps.launch_pod.outputs.pod_id }}"
           echo "⌛ Polling pod status for ID: $POD_ID..."
 
           for i in {1..45}; do
-            sleep 120
+            echo "🔁 Poll attempt $i..."
+            sleep 10
+
             STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status runtime { ports { ip isIpPublic publicPort type } } } }\"}"
+
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
               -d "$STATUS_QUERY")
+
+            STATUS=$(echo "$response" | jq -r '.data.pod.status')
+            echo "🔄 Status check $i: $STATUS"
 
             PORTS_EXIST=$(echo "$response" | jq -e '.data.pod.runtime.ports | type == "array" and length > 0' >/dev/null 2>&1 && echo "yes" || echo "no")
 
@@ -95,21 +106,22 @@ jobs:
               PUBLIC_IP=$(echo "$PORT_INFO" | jq -r '.ip // empty')
               PUBLIC_PORT=$(echo "$PORT_INFO" | jq -r '.publicPort // empty')
 
-              echo "🔄 Port check $i: $PUBLIC_IP:$PUBLIC_PORT"
+              echo "🔍 Found public IP: $PUBLIC_IP:$PUBLIC_PORT"
 
               if [ -n "$PUBLIC_IP" ]; then
-                echo "✅ Pod is live at: http://$PUBLIC_IP:$PUBLIC_PORT"
-                echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_ENV
-                echo "RUNPOD_URL=http://$PUBLIC_IP:$PUBLIC_PORT" >> $GITHUB_OUTPUT
+                RUNPOD_URL="http://$PUBLIC_IP:$PUBLIC_PORT"
+                echo "✅ Pod is live at: $RUNPOD_URL"
+                echo "RUNPOD_URL=$RUNPOD_URL" >> $GITHUB_ENV
+                echo "RUNPOD_URL=$RUNPOD_URL" >> $GITHUB_OUTPUT
                 break
               fi
             fi
-
-            echo "🔄 Status check $i: $STATUS"
           done
 
           if [ -z "$PUBLIC_IP" ] || [ "$PUBLIC_IP" = "null" ]; then
             echo "❌ Pod failed to start within timeout"
+            echo "ℹ️ Last status response:"
+            echo "$response"
             exit 1
           fi
 
