@@ -5,28 +5,30 @@ import base64
 import requests
 from PIL import Image
 from app.config import Settings
-from google.generativeai import configure, GenerativeModel
+import google.generativeai as genai
 
 # Load environment settings
 settings = Settings()
 
-configure(api_key=settings.GEMINI_API_KEY)
+# Configure the Gemini SDK once globally
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 
-def extract_image_text(path: str) -> str:
-    """
-    Extracts visible text from an image using Gemini Pro Vision API via HTTP.
-    Fallback method for OCR-like use cases.
-    """
+def extract_image_text(data: bytes | str) -> str:
+    """Extract visible text from an image using Gemini Pro Vision."""
     api_key = settings.GEMINI_API_KEY
     if not api_key:
         return "Error: GEMINI_API_KEY not set."
 
-    if not os.path.exists(path):
-        return f"Error: File not found - {path}"
+    if isinstance(data, str):
+        if not os.path.exists(data):
+            return f"Error: File not found - {data}"
+        with open(data, "rb") as f:
+            image_bytes = f.read()
+    else:
+        image_bytes = data
 
-    with open(path, "rb") as f:
-        encoded_image = base64.b64encode(f.read()).decode("utf-8")
+    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
     endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
     headers = {"Content-Type": "application/json"}
@@ -47,33 +49,25 @@ def extract_image_text(path: str) -> str:
     }
 
     try:
-        response = requests.post(
-            f"{endpoint}?key={api_key}", json=payload, headers=headers
-        )
+        response = requests.post(f"{endpoint}?key={settings.GEMINI_API_KEY}", json=payload, headers=headers)
         if response.status_code == 200:
             data = response.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
         else:
-            return f"Error: Gemini API {response.status_code} - {response.text}"
+            return f"❌ Gemini API {response.status_code} - {response.text}"
     except Exception as e:
-        return f"Exception during image OCR: {e}"
+        return f"❌ Exception during OCR: {str(e)}"
 
 
 def describe_image(path: str) -> str:
-    """
-    Uses the Gemini SDK to describe the content of the image, e.g., objects, scene.
-    Requires the google-generativeai library.
-    """
-    if not GenerativeModel:
-        return "Error: google-generativeai not installed."
-
+    """Describe objects and scenes in the image using Gemini Vision."""
     api_key = settings.GEMINI_API_KEY
     if not api_key:
         return "Error: GEMINI_API_KEY not set."
 
     try:
         image = Image.open(path)
-        model = GenerativeModel("gemini-pro-vision", api_key=api_key)
+        model = genai.GenerativeModel("gemini-pro-vision")
         response = model.generate_content(["Describe this image in detail.", image])
         return response.text
     except Exception as e:
@@ -81,12 +75,7 @@ def describe_image(path: str) -> str:
 
 
 def summarize_text_gemini(text: str, query: str = "") -> str:
-    """
-    Summarize given text based on the query using Gemini-Pro text model.
-    """
-    if not GenerativeModel:
-        return "❌ google-generativeai not installed."
-
+    """Summarize text using Gemini Pro."""
     api_key = settings.GEMINI_API_KEY
     if not api_key:
         return "❌ GEMINI_API_KEY not set."
@@ -98,7 +87,7 @@ def summarize_text_gemini(text: str, query: str = "") -> str:
             f"Summarize the following text:\n\n{text}"
         )
 
-        model = GenerativeModel("gemini-pro", api_key=api_key)
+        model = genai.GenerativeModel("gemini-pro")
         response = model.generate_content(prompt)
 
         return response.text.strip()

@@ -8,6 +8,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+@app.get("/")
+def root():
+    return {"message": "AutonoMind FastAPI is running"}
+
+
 # Include routes
 app.include_router(input_handler.router)
 app.include_router(file_upload.router)

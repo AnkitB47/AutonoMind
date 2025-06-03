@@ -20,3 +20,11 @@ auto_rollback = true
   [[services.ports]]
     port = 443
     handlers = ["tls", "http"]
+
+[[services]]
+  internal_port = 8000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 8000
+    handlers = ["http"]

@@ -31,7 +31,7 @@ transformers>=4.40.0
 
 # --- Multimodal AI ---
 openai-whisper
-google-generativeai
+google-generativeai>=0.4.1
 pymupdf>=1.23.0
 pypdf
 

@@ -84,19 +84,17 @@ jobs:
 
           POD_ID="${{ steps.launch_pod.outputs.pod_id }}"
           echo "⌛ Polling pod status for ID: $POD_ID..."
-
           for i in {1..45}; do
             echo "🔁 Poll attempt $i..."
             sleep 10
 
-            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { status runtime { ports { ip isIpPublic publicPort type } } } }\"}"
-
+            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { desiredStatus runtime { ports { ip isIpPublic publicPort type } } } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
               -d "$STATUS_QUERY")
 
-            STATUS=$(echo "$response" | jq -r '.data.pod.status')
+            STATUS=$(echo "$response" | jq -r '.data.pod.desiredStatus')
             echo "🔄 Status check $i: $STATUS"
 
             # Extract both 8000 (FastAPI) and 8080 (Streamlit)
@@ -119,12 +117,12 @@ jobs:
             fi
           done
 
-          if [ -z "$FASTAPI_IP" ] || [ -z "$STREAMLIT_IP" ]; then
+          if [[ -z "$FASTAPI" || -z "$STREAMLIT" ]]; then
             echo "❌ One or both services failed to start within timeout"
-            echo "ℹ️ Last status response:"
-            echo "$response"
+            echo "ℹ️ Last response: $response"
             exit 1
           fi
+
 
       - name: 🔐 Store Public URLs as GitHub Secrets
         if: success()
