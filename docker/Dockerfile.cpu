@@ -6,11 +6,13 @@ ENV PYTHONPATH=/workspace
 ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
-# Install Node.js for frontend build
+# Install Node.js and npm for frontend build
 RUN apt-get update && \
+    apt-get install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
-    apt-get install -y nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install -y nodejs npm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create Python environment
 RUN conda create -n appenv python=3.10 -y
@@ -22,11 +24,11 @@ RUN conda run -n appenv conda install -c pytorch faiss-cpu -y
 COPY requirements-cpu.txt ./requirements.txt
 RUN conda run -n appenv pip install --no-cache-dir -r requirements.txt
 
-# Copy only frontend first for build caching
+# Copy only frontend's package files (to leverage Docker cache for npm CI)
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm ci && cd ..
 
-# Copy project source
+# Copy the rest of the project
 COPY . .
 
 # Build frontend
@@ -38,5 +40,15 @@ RUN mkdir -p /data
 # Expose ports
 EXPOSE 8000 8080 3000
 
-# Run FastAPI + Streamlit
-CMD conda run -n appenv bash -c "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true & cd frontend && npm run preview -- --host 0.0.0.0 --port 3000"
+# Run FastAPI + Streamlit + Preview frontend
+CMD conda run -n appenv bash -c "\
+    uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
+    streamlit run app/main_streamlit.py \
+      --server.port=8080 \
+      --server.address=0.0.0.0 \
+      --server.enableCORS=false \
+      --server.enableXsrfProtection=false \
+      --server.headless=true & \
+    cd frontend && \
+    npm run preview -- --host 0.0.0.0 --port 3000\
+"
