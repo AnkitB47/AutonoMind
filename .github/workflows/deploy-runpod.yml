@@ -25,17 +25,25 @@ jobs:
 
       - name: 🧱 Build & Push GPU Docker Image
         run: |
+          set -euo pipefail
           docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
       - name: 🔍 Verify Image Exists on GHCR (Public)
         run: |
+          set -euo pipefail
           docker manifest inspect ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest > /dev/null
+
+      - name: 🛠 Install jq
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: 🚀 Launch GPU Pod via GraphQL API (Secure Cloud)
         id: launch_pod
         run: |
-          set -e
+          set -euo pipefail
 
           UNIQUE_POD_NAME="github-actions-pod-${{ github.run_id }}"
           GHCR_IMAGE="ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest"
@@ -77,10 +85,7 @@ jobs:
       - name: 🔄 Poll Pod Status via GraphQL
         id: poll_status
         run: |
-          set -e
-
-          # Install jq if needed
-          sudo apt-get update && sudo apt-get install -y jq
+          set -euo pipefail
 
           POD_ID="${{ steps.launch_pod.outputs.pod_id }}"
           echo "⌛ Polling pod status for ID: $POD_ID..."
@@ -88,7 +93,7 @@ jobs:
             echo "🔁 Poll attempt $i..."
             sleep 60
 
-            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { desiredStatus runtime { ports { ip isIpPublic publicPort type } } } }\"}"
+            STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { desiredStatus runtime { ports { ip isIpPublic publicPort privatePort type } } } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \
               -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
               -H "Content-Type: application/json" \
@@ -132,6 +137,7 @@ jobs:
       - name: 🔐 Store Public URLs as GitHub Secrets
         if: success()
         run: |
+          set -euo pipefail
           gh secret set FASTAPI_URL --body "${{ steps.poll_status.outputs.fastapi_url }}"
           gh secret set STREAMLIT_URL --body "${{ steps.poll_status.outputs.streamlit_url }}"
           gh secret set FRONTEND_URL --body "${{ steps.poll_status.outputs.frontend_url }}"
@@ -141,6 +147,7 @@ jobs:
       - name: 📣 Deployment Summary
         if: success()
         run: |
+          set -euo pipefail
           echo "🚀 Your app is live!"
           echo "✅ FastAPI URL: ${{ steps.poll_status.outputs.fastapi_url }}"
           echo "✅ Streamlit URL: ${{ steps.poll_status.outputs.streamlit_url }}"
