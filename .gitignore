@@ -58,3 +58,7 @@ cache/
 *.pt
 *.bin
 *.ckpt
+
+# === Node ===
+frontend/node_modules/
+frontend/dist/

@@ -1,0 +1,11 @@
+{
+  "name": "autonomind-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview --port 3000 --host"
+  },
+  "devDependencies": {
+    "vite": "^4.5.0"
+  }
+}

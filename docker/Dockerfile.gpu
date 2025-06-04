@@ -16,6 +16,8 @@ RUN apt-get update --fix-missing && \
         python3 python3-pip \
         ffmpeg libsndfile1 libgl1 jq \
         ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -30,11 +32,14 @@ RUN pip install torch==2.2.2 torchvision torchaudio --index-url https://download
 # Copy code
 COPY . .
 
+# Build frontend
+RUN cd frontend && npm ci && npm run build && cd ..
+
 # Ensure FAISS index path exists
 RUN mkdir -p /data
 
 # Expose both ports
-EXPOSE 8000 8080
+EXPOSE 8000 8080 3000
 
 # Run FastAPI and Streamlit together
-CMD ["bash", "-c", "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"]
+CMD ["bash", "-c", "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true & cd frontend && npm run preview -- --host 0.0.0.0 --port 3000"]

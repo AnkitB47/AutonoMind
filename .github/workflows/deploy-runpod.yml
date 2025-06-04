@@ -41,8 +41,7 @@ jobs:
           GHCR_IMAGE="ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
-          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, supportPublicIp: false, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"$GHCR_IMAGE\\\", ports: \\\"8000/http,8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ { key: \\\"OPENAI_API_KEY\\\", value: \\\"${{ secrets.OPENAI_API_KEY }}\\\" }, { key: \\\"LANGCHAIN_API_KEY\\\", value: \\\"${{ secrets.LANGCHAIN_API_KEY }}\\\" }, { key: \\\"PINECONE_API_KEY\\\", value: \\\"${{ secrets.PINECONE_API_KEY }}\\\" }, { key: \\\"PINECONE_INDEX_NAME\\\", value: \\\"${{ secrets.PINECONE_INDEX_NAME }}\\\" }, { key: \\\"PINECONE_INDEX_HOST\\\", value: \\\"${{ secrets.PINECONE_INDEX_HOST }}\\\" }, { key: \\\"PINECONE_REGION\\\", value: \\\"${{ secrets.PINECONE_REGION }}\\\" }, { key: \\\"LANGCHAIN_PROJECT\\\", value: \\\"${{ secrets.LANGCHAIN_PROJECT }}\\\" }, { key: \\\"SERPAPI_API_KEY\\\", value: \\\"${{ secrets.SERPAPI_API_KEY }}\\\" }, { key: \\\"GEMINI_API_KEY\\\", value: \\\"${{ secrets.GEMINI_API_KEY }}\\\" }, { key: \\\"HF_TOKEN\\\", value: \\\"${{ secrets.HF_TOKEN }}\\\" }, { key: \\\"GROQ_API_KEY\\\", value: \\\"${{ secrets.GROQ_API_KEY }}\\\" }, { key: \\\"LANGFUSE_PUBLIC_KEY\\\", value: \\\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\\" }, { key: \\\"LANGFUSE_SECRET_KEY\\\", value: \\\"${{ secrets.LANGFUSE_SECRET_KEY }}\\\" }, { key: \\\"LANGFUSE_HOST\\\", value: \\\"${{ secrets.LANGFUSE_HOST }}\\\" }, { key: \\\"FAISS_INDEX_PATH\\\", value: \\\"${{ secrets.FAISS_INDEX_PATH }}\\\" }, { key: \\\"USE_GPU\\\", value: \\\"${{ secrets.USE_GPU }}\\\" }, { key: \\\"MODEL_PATH\\\", value: \\\"${{ secrets.MODEL_PATH }}\\\" } ] }) { id } }\"}"
-          
+          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, supportPublicIp: false, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"$GHCR_IMAGE\\\", ports: \\\"8000/http,8080/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ { key: \\\"OPENAI_API_KEY\\\", value: \\\"${{ secrets.OPENAI_API_KEY }}\\\" }, { key: \\\"LANGCHAIN_API_KEY\\\", value: \\\"${{ secrets.LANGCHAIN_API_KEY }}\\\" }, { key: \\\"PINECONE_API_KEY\\\", value: \\\"${{ secrets.PINECONE_API_KEY }}\\\" }, { key: \\\"PINECONE_INDEX_NAME\\\", value: \\\"${{ secrets.PINECONE_INDEX_NAME }}\\\" }, { key: \\\"PINECONE_INDEX_HOST\\\", value: \\\"${{ secrets.PINECONE_INDEX_HOST }}\\\" }, { key: \\\"PINECONE_REGION\\\", value: \\\"${{ secrets.PINECONE_REGION }}\\\" }, { key: \\\"LANGCHAIN_PROJECT\\\", value: \\\"${{ secrets.LANGCHAIN_PROJECT }}\\\" }, { key: \\\"SERPAPI_API_KEY\\\", value: \\\"${{ secrets.SERPAPI_API_KEY }}\\\" }, { key: \\\"GEMINI_API_KEY\\\", value: \\\"${{ secrets.GEMINI_API_KEY }}\\\" }, { key: \\\"HF_TOKEN\\\", value: \\\"${{ secrets.HF_TOKEN }}\\\" }, { key: \\\"GROQ_API_KEY\\\", value: \\\"${{ secrets.GROQ_API_KEY }}\\\" }, { key: \\\"LANGFUSE_PUBLIC_KEY\\\", value: \\\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\\" }, { key: \\\"LANGFUSE_SECRET_KEY\\\", value: \\\"${{ secrets.LANGFUSE_SECRET_KEY }}\\\" }, { key: \\\"LANGFUSE_HOST\\\", value: \\\"${{ secrets.LANGFUSE_HOST }}\\\" }, { key: \\\"FAISS_INDEX_PATH\\\", value: \\\"${{ secrets.FAISS_INDEX_PATH }}\\\" }, { key: \\\"USE_GPU\\\", value: \\\"${{ secrets.USE_GPU }}\\\" }, { key: \\\"MODEL_PATH\\\", value: \\\"${{ secrets.MODEL_PATH }}\\\" } ] }) { id } }\"}"          
           echo "✅ Sending GraphQL mutation:"
           echo "$GRAPHQL_QUERY"
 
@@ -105,15 +104,15 @@ jobs:
             STREAMLIT_PUBLIC=$(echo "$STREAMLIT_INFO" | jq -r '.publicPort // empty')
 
             if [ -n "$FASTAPI_PUBLIC" ] && [ -n "$STREAMLIT_PUBLIC" ] && [ "$STATUS" = "RUNNING" ]; then
-              FASTAPI_URL="https://$POD_ID-$FASTAPI_PUBLIC.proxy.runpod.net"
-              STREAMLIT_URL="https://$POD_ID-$STREAMLIT_PUBLIC.proxy.runpod.net"
-              echo "✅ FastAPI is live at: $FASTAPI_URL"
-              echo "✅ Streamlit is live at: $STREAMLIT_URL"
-              echo "fastapi_url=$FASTAPI_URL" >> $GITHUB_OUTPUT
-              echo "streamlit_url=$STREAMLIT_URL" >> $GITHUB_OUTPUT
-              echo "FASTAPI_URL=$FASTAPI_URL" >> $GITHUB_ENV
-              echo "STREAMLIT_URL=$STREAMLIT_URL" >> $GITHUB_ENV
-             break
+               FASTAPI_URL="https://$POD_ID-$FASTAPI_PUBLIC.proxy.runpod.net"
+               STREAMLIT_URL="https://$POD_ID-$STREAMLIT_PUBLIC.proxy.runpod.net"
+               echo "✅ FastAPI is live at: $FASTAPI_URL"
+               echo "✅ Streamlit is live at: $STREAMLIT_URL"
+               echo "fastapi_url=$FASTAPI_URL" >> $GITHUB_OUTPUT
+               echo "streamlit_url=$STREAMLIT_URL" >> $GITHUB_OUTPUT
+               echo "FASTAPI_URL=$FASTAPI_URL" >> $GITHUB_ENV
+               echo "STREAMLIT_URL=$STREAMLIT_URL" >> $GITHUB_ENV
+              break
             fi
           done
 

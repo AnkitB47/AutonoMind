@@ -9,6 +9,12 @@ WORKDIR /workspace
 RUN conda create -n appenv python=3.10 -y
 SHELL ["conda", "run", "-n", "appenv", "/bin/bash", "-c"]
 
+# Install Node.js for frontend build
+RUN apt-get update && \
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Install FAISS from conda (precompiled binary)
 RUN conda install -n appenv -c pytorch faiss-cpu -y
 
@@ -19,11 +25,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project source
 COPY . .
 
+# Build frontend
+RUN cd frontend && npm ci && npm run build && cd ..
+
 # Ensure FAISS index path exists
 RUN mkdir -p /data
 
 # Expose ports
-EXPOSE 8000 8080
+EXPOSE 8000 8080 3000
 
 # Run FastAPI + Streamlit
-CMD conda run -n appenv bash -c "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true"
+CMD conda run -n appenv bash -c "uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & streamlit run app/main_streamlit.py --server.port=8080 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false --server.headless=true & cd frontend && npm run preview -- --host 0.0.0.0 --port 3000"
