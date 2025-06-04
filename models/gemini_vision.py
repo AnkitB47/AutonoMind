@@ -3,7 +3,9 @@
 import os
 import base64
 import requests
+from io import BytesIO
 from PIL import Image
+import mimetypes
 from app.config import Settings
 import google.generativeai as genai
 
@@ -25,12 +27,24 @@ def extract_image_text(data: bytes | str) -> str:
             return f"Error: File not found - {data}"
         with open(data, "rb") as f:
             image_bytes = f.read()
+        mime_type = mimetypes.guess_type(data)[0]
     else:
         image_bytes = data
+        mime_type = None
+
+    if not mime_type:
+        try:
+            img = Image.open(BytesIO(image_bytes))
+            mime_type = Image.MIME.get(img.format)
+        except Exception:
+            mime_type = "application/octet-stream"
 
     encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
-    endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
+    endpoint = (
+        "https://generativelanguage.googleapis.com/v1/models/"
+        "gemini-1.5-pro:generateContent"
+    )
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [
@@ -39,7 +53,7 @@ def extract_image_text(data: bytes | str) -> str:
                     {"text": "Extract any visible text from this image."},
                     {
                         "inlineData": {
-                            "mimeType": "image/png",
+                            "mimeType": mime_type,
                             "data": encoded_image
                         }
                     }
@@ -67,7 +81,7 @@ def describe_image(path: str) -> str:
 
     try:
         image = Image.open(path)
-        model = genai.GenerativeModel("gemini-pro-vision")
+        model = genai.GenerativeModel("gemini-1.5-pro")
         response = model.generate_content(["Describe this image in detail.", image])
         return response.text
     except Exception as e:
@@ -87,7 +101,7 @@ def summarize_text_gemini(text: str, query: str = "") -> str:
             f"Summarize the following text:\n\n{text}"
         )
 
-        model = genai.GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
 
         return response.text.strip()
