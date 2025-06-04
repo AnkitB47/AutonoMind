@@ -9,7 +9,7 @@ from app.config import Settings
 # Load environment settings
 settings = Settings()
 
-FAISS_INDEX_PATH = os.getenv("FAISS_INDEX_PATH", "faiss_db")
+FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
 splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
 

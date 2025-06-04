@@ -3,6 +3,7 @@ FROM continuumio/miniconda3:latest
 
 # Ensure PYTHONPATH includes workspace
 ENV PYTHONPATH=/workspace
+ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
 # Install Node.js for frontend build before activating conda shell

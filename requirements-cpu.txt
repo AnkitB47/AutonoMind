@@ -20,6 +20,7 @@ langchain-pinecone>=0.0.3
 langchain-openai>=0.0.5
 langgraph>=0.0.18
 langchain-text-splitters>=0.0.1
+pillow
 
 # --- RAG / Embeddings ---
 pinecone-client>=3.0.0

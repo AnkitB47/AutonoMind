@@ -6,6 +6,8 @@
     "preview": "vite preview --port 3000 --host"
   },
   "devDependencies": {
-    "vite": "^4.5.0"
+    "vite": "^4.5.0",
+    "tailwindcss": "^4.1.8",
+    "autoprefixer": "^10.4.21"
   }
 }

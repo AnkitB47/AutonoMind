@@ -10,7 +10,7 @@ settings = Settings()
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
 
 # Define constant FAISS path
-FAISS_INDEX_PATH = "/data/vector.index"
+FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
 
 # Internal store cache
 store = None
