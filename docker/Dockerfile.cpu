@@ -5,15 +5,15 @@ FROM continuumio/miniconda3:latest
 ENV PYTHONPATH=/workspace
 WORKDIR /workspace
 
-# Create and activate a new environment
-RUN conda create -n appenv python=3.10 -y
-SHELL ["conda", "run", "-n", "appenv", "/bin/bash", "-c"]
-
-# Install Node.js for frontend build
+# Install Node.js for frontend build before activating conda shell
 RUN apt-get update && \
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create and activate a new environment
+RUN conda create -n appenv python=3.10 -y
+SHELL ["conda", "run", "-n", "appenv", "/bin/bash", "-c"]
 
 # Install FAISS from conda (precompiled binary)
 RUN conda install -n appenv -c pytorch faiss-cpu -y
@@ -22,11 +22,15 @@ RUN conda install -n appenv -c pytorch faiss-cpu -y
 COPY requirements-cpu.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy only frontend first for build caching
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci && cd ..
+
 # Copy project source
 COPY . .
 
 # Build frontend
-RUN cd frontend && npm ci && npm run build && cd ..
+RUN cd frontend && npm run build && cd ..
 
 # Ensure FAISS index path exists
 RUN mkdir -p /data

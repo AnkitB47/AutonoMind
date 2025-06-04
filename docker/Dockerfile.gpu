@@ -29,8 +29,15 @@ RUN python3 -m pip install --upgrade pip setuptools wheel && \
 # PyTorch with CUDA 11.8
 RUN pip install torch==2.2.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
+# Copy frontend dependencies separately for build caching
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci && cd ..
+
 # Copy code
 COPY . .
+
+# Build frontend
+RUN cd frontend && npm run build && cd ..
 
 # Build frontend
 RUN cd frontend && npm ci && npm run build && cd ..
