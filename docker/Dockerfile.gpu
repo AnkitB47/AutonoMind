@@ -38,9 +38,6 @@ RUN cd frontend && npm ci && cd ..
 COPY . .
 
 # Build frontend
-RUN cd frontend && npm run build && cd ..
-
-# Build frontend
 RUN cd frontend && npm ci && npm run build && cd ..
 
 # Ensure FAISS index path exists

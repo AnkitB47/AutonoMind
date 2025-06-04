@@ -20,7 +20,6 @@ langchain-pinecone>=0.0.3
 langchain-openai>=0.0.5
 langchain-text-splitters>=0.0.1
 langgraph>=0.0.18
-pillow
 
 # --- RAG / Embeddings ---
 pinecone-client>=3.0.0
@@ -35,6 +34,7 @@ openai-whisper
 google-generativeai>=0.8.5
 pymupdf>=1.23.0
 pypdf
+pillow
 
 # --- Development & Quality ---
 black
