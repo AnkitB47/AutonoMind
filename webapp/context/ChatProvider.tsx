@@ -12,6 +12,8 @@ export interface Message {
 interface ChatCtx {
   mode: Mode;
   messages: Message[];
+  loading: boolean;
+  error: string | null;
   setMode: (m: Mode) => void;
   sendMessage: (text: string) => void;
   sendVoice: (blob: Blob) => void;
@@ -24,33 +26,66 @@ const ChatContext = createContext<ChatCtx>({} as ChatCtx);
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>('text');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const sendMessage = (text: string) => {
+  const sendMessage = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', content: text }]);
-    sendTextMessage(text).then((res) =>
-      setMessages((m) => [...m, { role: 'bot', content: res }])
-    );
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await sendTextMessage(text);
+      setMessages((m) => [...m, { role: 'bot', content: res }]);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const sendVoice = (blob: Blob) => {
+  const sendVoice = async (blob: Blob) => {
     setMessages((m) => [...m, { role: 'user', content: '[voice]' }]);
-    sendVoiceSvc(blob).then((res) =>
-      setMessages((m) => [...m, { role: 'bot', content: res }])
-    );
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await sendVoiceSvc(blob);
+      setMessages((m) => [...m, { role: 'bot', content: res }]);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const uploadFile = (file: File) => {
+  const uploadFile = async (file: File) => {
     setMessages((m) => [...m, { role: 'user', content: file.name }]);
-    uploadFileSvc(file).then((res) =>
-      setMessages((m) => [...m, { role: 'bot', content: res }])
-    );
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await uploadFileSvc(file);
+      setMessages((m) => [...m, { role: 'bot', content: res }]);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const clearMessages = () => setMessages([]);
 
   return (
     <ChatContext.Provider
-      value={{ mode, messages, setMode, sendMessage, sendVoice, uploadFile, clearMessages }}
+      value={{
+        mode,
+        messages,
+        loading,
+        error,
+        setMode,
+        sendMessage,
+        sendVoice,
+        uploadFile,
+        clearMessages,
+      }}
     >
       {children}
     </ChatContext.Provider>
