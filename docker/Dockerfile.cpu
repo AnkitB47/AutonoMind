@@ -1,50 +1,58 @@
 # --- docker/Dockerfile.cpu ---
-FROM continuumio/miniconda3:latest
+# --- Build frontend ---
+FROM node:lts AS frontend-builder
+WORKDIR /build/webapp
+COPY webapp/package*.json ./
+RUN npm ci
+COPY webapp .
+RUN npm run build && npm prune --production
+
+# --- Install python dependencies ---
+FROM python:3.10-slim AS python-deps
+WORKDIR /deps
+COPY requirements-cpu.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir faiss-cpu \
+    && pip install --no-cache-dir -r requirements-cpu.txt
+
+# --- Final runtime image ---
+FROM python:3.10-slim
 
 ARG NEXT_PUBLIC_FASTAPI_URL
 ARG NEXT_PUBLIC_STREAMLIT_URL
 ENV NEXT_PUBLIC_FASTAPI_URL=${NEXT_PUBLIC_FASTAPI_URL}
 ENV NEXT_PUBLIC_STREAMLIT_URL=${NEXT_PUBLIC_STREAMLIT_URL}
 
+ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONPATH=/workspace
 ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
-# 1) Install Node.js (for webapp build)
-RUN apt-get update && \
-    apt-get install -y curl && \
+# 1) Install Node.js runtime
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends curl && \
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
-    apt-get update && \
-    apt-get install -y nodejs && \
+    apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 2) Create Conda environment and install FAISS-CPU
-RUN conda create -n appenv python=3.10 -y && \
-    conda run -n appenv conda install -c pytorch faiss-cpu -y
+# 2) Copy Python dependencies from builder stage
+COPY --from=python-deps /usr/local /usr/local
 
-# 3) Copy and install Python requirements
-COPY requirements-cpu.txt ./requirements.txt
-RUN conda run -n appenv pip install --no-cache-dir -r requirements.txt
-
-# 4) Copy webapp package files and install
-COPY webapp/package*.json ./webapp/
-RUN cd webapp && npm install && cd ..
-
-# 5) Copy the rest of the project
+# 3) Copy application source
 COPY . .
 
-# 6) Build frontend
-RUN cd webapp && npm ci && npm run build && cd ..
+# 4) Copy built frontend
+COPY --from=frontend-builder /build/webapp ./webapp
 
-# 7) Ensure FAISS index directory exists
+# 5) Ensure FAISS index directory exists
 RUN mkdir -p /data
 
-# 8) Expose ports for FastAPI (8000), Streamlit (8080), and webapp preview (3000)
+# 6) Expose ports for FastAPI (8000), Streamlit (8080), and webapp preview (3000)
 EXPOSE 8000 8080 3000
 
-# 9) Launch FastAPI + Streamlit + webapp preview (inside conda env)
-CMD conda run -n appenv bash -c "\
+# 7) Launch FastAPI + Streamlit + webapp preview
+CMD bash -c "\
     uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
     streamlit run app/main_streamlit.py \
       --server.port=8080 \
