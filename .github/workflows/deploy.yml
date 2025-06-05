@@ -32,9 +32,10 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           flyctl auth login --access-token "$FLY_API_TOKEN"
+          flyctl auth docker
 
       - name: 🚀 Deploy Docker Image to Fly.io
         run: |
-          flyctl deploy -c fly.toml --remote-only --no-cache \
+          flyctl deploy -c fly.toml --local-only --no-cache \
             --build-arg NEXT_PUBLIC_FASTAPI_URL=${{ secrets.FASTAPI_URL }} \
             --build-arg NEXT_PUBLIC_STREAMLIT_URL=${{ secrets.STREAMLIT_URL }}
