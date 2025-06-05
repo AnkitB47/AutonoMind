@@ -34,7 +34,7 @@ RUN cd webapp && npm install && cd ..
 # 5) Copy the rest of the project
 COPY . .
 
-# 6) Build frontend␊
+# 6) Build frontend
 RUN cd webapp && npm ci && npm run build && cd ..
 
 # 7) Ensure FAISS index directory exists
