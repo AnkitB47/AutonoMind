@@ -26,7 +26,10 @@ jobs:
       - name: 🧱 Build & Push GPU Docker Image
         run: |
           set -euo pipefail
-          docker build -f docker/Dockerfile.gpu --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
+          docker build -f docker/Dockerfile.gpu \
+            --build-arg NEXT_PUBLIC_FASTAPI_URL=${{ secrets.FASTAPI_URL }} \
+            --build-arg NEXT_PUBLIC_STREAMLIT_URL=${{ secrets.STREAMLIT_URL }} \
+            -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
           docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
 
       - name: 🔍 Verify Image Exists on GHCR (Public)
