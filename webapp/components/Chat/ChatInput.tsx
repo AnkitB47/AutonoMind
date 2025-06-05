@@ -18,8 +18,6 @@ export default function ChatInput() {
     } else if (mode === 'search' && text.trim()) {
       sendMessage(text);
       setText('');
-    } else if (mode === 'voice') {
-      sendVoice(new Blob());
     } else if (mode === 'image' && file) {
       uploadFile(file);
       setFile(null);

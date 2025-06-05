@@ -1,9 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// A small utility hook for recording audio from the user's microphone using the
-// MediaRecorder API. It exposes `start` and `stop` functions and keeps track of
-// the current recording state.
+// Utility hook for recording audio from the user's microphone using the
+// `MediaRecorder` API. It exposes `start` and `stop` functions and keeps track
+// of the recording state. Recorded audio is returned as a `Blob` when stopping.
 
 export default function useSpeechRecognition() {
   const [isRecording, setIsRecording] = useState(false);

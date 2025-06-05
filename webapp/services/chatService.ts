@@ -37,3 +37,10 @@ export async function uploadPdfFile(file: File) {
   const { data } = await fastApi.post('/upload', form);
   return data.message || 'uploaded';
 }
+
+export async function uploadFile(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await fastApi.post('/upload', form);
+  return data.result || data.message || 'uploaded';
+}
