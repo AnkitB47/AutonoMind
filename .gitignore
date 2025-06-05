@@ -28,6 +28,7 @@ nohup.out
 # === Docker ===
 *.tar
 docker-compose.override.yml
+docker-compose.*
 docker/data/
 docker/cache/
 

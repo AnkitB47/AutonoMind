@@ -33,6 +33,6 @@ jobs:
         run: |
           flyctl auth login --access-token "$FLY_API_TOKEN"
 
-      - name: 🚀 Deploy Docker Image to Fly.io (via fly.cpu.toml)
+      - name: 🚀 Deploy Docker Image to Fly.io (via fly.cpu.toml)␊
         run: |
-          flyctl deploy -c fly.toml --remote-only --no-cache
+          flyctl deploy -c fly.toml --remote-only --no-cache --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }}

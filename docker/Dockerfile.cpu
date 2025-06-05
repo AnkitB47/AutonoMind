@@ -1,12 +1,15 @@
-# --- docker/Dockerfile.cpu (FAISS FIXED) ---
+# --- docker/Dockerfile.cpu ---
 FROM continuumio/miniconda3:latest
 
-# Ensure PYTHONPATH includes workspace
+# API endpoint for the frontend build
+ARG VITE_API_URL=http://localhost:8000
+ENV VITE_API_URL=${VITE_API_URL}
+
 ENV PYTHONPATH=/workspace
 ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
-# Install Node.js and npm for frontend build
+# 1) Install Node.js (for frontend build)
 RUN apt-get update && \
     apt-get install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
@@ -15,33 +18,31 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Create Python environment
-RUN conda create -n appenv python=3.10 -y
+# 2) Create Conda environment and install FAISS-CPU
+RUN conda create -n appenv python=3.10 -y && \
+    conda run -n appenv conda install -c pytorch faiss-cpu -y
 
-# Install FAISS from conda (precompiled binary)
-RUN conda run -n appenv conda install -c pytorch faiss-cpu -y
-
-# Copy and install Python requirements
+# 3) Copy and install Python requirements
 COPY requirements-cpu.txt ./requirements.txt
 RUN conda run -n appenv pip install --no-cache-dir -r requirements.txt
 
-# Copy only frontend's package files (to leverage Docker cache for npm CI)
+# 4) Copy only frontend package files (leverage cache) and install
 COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm ci && cd ..
+RUN cd frontend && npm install && cd ..
 
-# Copy the rest of the project
+# 5) Copy the rest of the project
 COPY . .
 
-# Build frontend
-RUN cd frontend && npm ci && npm run build && cd ..
+# 6) Build frontend
+RUN cd frontend && npm ci && VITE_API_URL=$VITE_API_URL npm run build && cd ..
 
-# Ensure FAISS index path exists
+# 7) Ensure FAISS index directory exists
 RUN mkdir -p /data
 
-# Expose ports
+# 8) Expose ports for FastAPI (8000), Streamlit (8080), and frontend preview (3000)
 EXPOSE 8000 8080 3000
 
-# Run FastAPI + Streamlit + Preview frontend
+# 9) Launch FastAPI + Streamlit + frontend preview (inside conda env)
 CMD conda run -n appenv bash -c "\
     uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
     streamlit run app/main_streamlit.py \
@@ -50,6 +51,5 @@ CMD conda run -n appenv bash -c "\
       --server.enableCORS=false \
       --server.enableXsrfProtection=false \
       --server.headless=true & \
-    cd frontend && \
-    npm run preview -- --host 0.0.0.0 --port 3000\
+    cd frontend && npm run preview -- --host 0.0.0.0 --port 3000\
 "

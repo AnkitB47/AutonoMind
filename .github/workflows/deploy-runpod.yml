@@ -23,11 +23,11 @@ jobs:
           username: ${{ secrets.GHCR_USER }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: 🧱 Build & Push GPU Docker Image
+      - name: 🧱 Build & Push GPU Docker Image␊
         run: |
-          set -euo pipefail
-          docker build -f docker/Dockerfile.gpu -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
-          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest
+          set -euo pipefail␊
+          docker build -f docker/Dockerfile.gpu --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} -t ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest .
+          docker push ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest␊
 
       - name: 🔍 Verify Image Exists on GHCR (Public)
         run: |
@@ -142,7 +142,7 @@ jobs:
           gh secret set STREAMLIT_URL --body "${{ steps.poll_status.outputs.streamlit_url }}"
           gh secret set FRONTEND_URL --body "${{ steps.poll_status.outputs.frontend_url }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
 
       - name: 📣 Deployment Summary
         if: success()
