@@ -1,21 +1,37 @@
 'use client';
 import { useContext, useState } from 'react';
-import { Send, Mic, Image, FileText, Search } from 'lucide-react';
+import { Send, Mic, Image, Search } from 'lucide-react';
 import { ChatContext } from '../../context/ChatProvider';
 import { Button } from '../Shared/Button';
+import useSpeechRecognition from '../../hooks/useSpeechRecognition';
 
 export default function ChatInput() {
-  const { mode, sendMessage, setMode, uploadFile } = useContext(ChatContext);
+  const { mode, sendMessage, sendVoice, setMode, uploadFile } = useContext(ChatContext);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const { start, stop, isRecording } = useSpeechRecognition();
 
   const handleSend = () => {
     if (mode === 'text' && text.trim()) {
       sendMessage(text);
       setText('');
+    } else if (mode === 'search' && text.trim()) {
+      sendMessage(text);
+      setText('');
+    } else if (mode === 'voice') {
+      sendVoice(new Blob());
     } else if (mode === 'image' && file) {
       uploadFile(file);
       setFile(null);
+    }
+  };
+
+  const handleRecord = async () => {
+    if (isRecording) {
+      const audio = await stop();
+      if (audio) sendVoice(audio);
+    } else {
+      start();
     }
   };
 
@@ -36,8 +52,11 @@ export default function ChatInput() {
       )}
       {mode === 'voice' && (
         <div className="flex justify-center">
-          <Button aria-label="record" onClick={() => sendMessage('[voice]')}
-            className="h-12 w-12 rounded-full border">
+          <Button
+            aria-label="record"
+            onClick={handleRecord}
+            className={`relative h-12 w-12 rounded-full border ${isRecording ? 'animate-pulse ring-2 ring-primary' : ''}`}
+          >
             <Mic />
           </Button>
         </div>

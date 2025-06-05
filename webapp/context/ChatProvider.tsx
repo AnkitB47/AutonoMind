@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { sendTextMessage, uploadFile as uploadFileSvc } from '../services/chatService';
+import { sendTextMessage, uploadFile as uploadFileSvc, sendVoice as sendVoiceSvc } from '../services/chatService';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
@@ -14,6 +14,7 @@ interface ChatCtx {
   messages: Message[];
   setMode: (m: Mode) => void;
   sendMessage: (text: string) => void;
+  sendVoice: (blob: Blob) => void;
   uploadFile: (file: File) => void;
   clearMessages: () => void;
 }
@@ -31,6 +32,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const sendVoice = (blob: Blob) => {
+    setMessages((m) => [...m, { role: 'user', content: '[voice]' }]);
+    sendVoiceSvc(blob).then((res) =>
+      setMessages((m) => [...m, { role: 'bot', content: res }])
+    );
+  };
+
   const uploadFile = (file: File) => {
     setMessages((m) => [...m, { role: 'user', content: file.name }]);
     uploadFileSvc(file).then((res) =>
@@ -42,7 +50,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   return (
     <ChatContext.Provider
-      value={{ mode, messages, setMode, sendMessage, uploadFile, clearMessages }}
+      value={{ mode, messages, setMode, sendMessage, sendVoice, uploadFile, clearMessages }}
     >
       {children}
     </ChatContext.Provider>

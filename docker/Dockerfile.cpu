@@ -1,15 +1,11 @@
 # --- docker/Dockerfile.cpu ---
 FROM continuumio/miniconda3:latest
 
-# API endpoint for the frontend build
-ARG VITE_API_URL=http://localhost:8000
-ENV VITE_API_URL=${VITE_API_URL}
-
 ENV PYTHONPATH=/workspace
 ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
-# 1) Install Node.js (for frontend build)
+# 1) Install Node.js (for webapp build)
 RUN apt-get update && \
     apt-get install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
@@ -26,23 +22,23 @@ RUN conda create -n appenv python=3.10 -y && \
 COPY requirements-cpu.txt ./requirements.txt
 RUN conda run -n appenv pip install --no-cache-dir -r requirements.txt
 
-# 4) Copy only frontend package files (leverage cache) and install
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install && cd ..
+# 4) Copy webapp package files and install
+COPY webapp/package*.json ./webapp/
+RUN cd webapp && npm install && cd ..
 
 # 5) Copy the rest of the project
 COPY . .
 
-# 6) Build frontend
-RUN cd frontend && npm ci && VITE_API_URL=$VITE_API_URL npm run build && cd ..
+# 6) Build frontend␊
+RUN cd webapp && npm ci && npm run build && cd ..
 
 # 7) Ensure FAISS index directory exists
 RUN mkdir -p /data
 
-# 8) Expose ports for FastAPI (8000), Streamlit (8080), and frontend preview (3000)
+# 8) Expose ports for FastAPI (8000), Streamlit (8080), and webapp preview (3000)
 EXPOSE 8000 8080 3000
 
-# 9) Launch FastAPI + Streamlit + frontend preview (inside conda env)
+# 9) Launch FastAPI + Streamlit + webapp preview (inside conda env)
 CMD conda run -n appenv bash -c "\
     uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
     streamlit run app/main_streamlit.py \
@@ -51,5 +47,5 @@ CMD conda run -n appenv bash -c "\
       --server.enableCORS=false \
       --server.enableXsrfProtection=false \
       --server.headless=true & \
-    cd frontend && npm run preview -- --host 0.0.0.0 --port 3000\
+    cd webapp && npm start -- -H 0.0.0.0 -p 3000\
 "

@@ -2,10 +2,11 @@
 import { useContext, useRef, useEffect } from 'react';
 import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
+import LoaderDots from '../Shared/LoaderDots';
 import { ChatContext } from '../../context/ChatProvider';
 
 export default function ChatWindow() {
-  const { messages } = useContext(ChatContext);
+  const { messages, loading, error } = useContext(ChatContext);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,6 +21,16 @@ export default function ChatWindow() {
             {m.content}
           </ChatBubble>
         ))}
+        {loading && (
+          <ChatBubble>
+            <LoaderDots />
+          </ChatBubble>
+        )}
+        {error && (
+          <ChatBubble>
+            <span className="text-destructive">{error}</span>
+          </ChatBubble>
+        )}
         <div ref={bottomRef} />
       </div>
       <ChatInput />

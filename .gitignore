@@ -63,3 +63,6 @@ cache/
 # === Node ===
 frontend/node_modules/
 frontend/dist/
+webapp/node_modules/
+webapp/.next/
+webapp/out/

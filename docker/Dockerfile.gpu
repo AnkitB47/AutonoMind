@@ -1,11 +1,7 @@
 # --- docker/Dockerfile.gpu ---
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
-# API endpoint for the frontend build
-ARG VITE_API_URL=http://localhost:8000
-ENV VITE_API_URL=${VITE_API_URL}
-
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_webapp=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV USE_GPU=True
@@ -34,23 +30,23 @@ RUN python3 -m pip install --upgrade pip setuptools wheel && \
 # 3) PyTorch (CUDA 11.8)
 RUN pip install torch==2.2.2 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
-# 4) Copy only frontend package files (leverage cache) and install
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install && cd ..
+# 4) Copy webapp package files and install
+COPY webapp/package*.json ./webapp/
+RUN cd webapp && npm install && cd ..
 
 # 5) Copy entire repo into image
 COPY . .
 
 # 6) Build frontend
-RUN cd frontend && npm ci && VITE_API_URL=$VITE_API_URL npm run build && cd ..
+RUN cd webapp && npm ci && npm run build && cd ..
 
 # 7) Ensure FAISS index directory exists
 RUN mkdir -p /data
 
-# 8) Expose ports for FastAPI (8000), Streamlit (8080), and frontend preview (3000)
+# 8) Expose ports for FastAPI (8000), Streamlit (8080), and webapp preview (3000)
 EXPOSE 8000 8080 3000
 
-# 9) Launch FastAPI + Streamlit + frontend preview
+# 9) Launch FastAPI + Streamlit + webapp preview
 CMD ["bash", "-c", "\
     uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
     streamlit run app/main_streamlit.py \
@@ -59,5 +55,5 @@ CMD ["bash", "-c", "\
       --server.enableCORS=false \
       --server.enableXsrfProtection=false \
       --server.headless=true & \
-    cd frontend && npm run preview -- --host 0.0.0.0 --port 3000\
+    cd webapp && npm start -- -H 0.0.0.0 -p 3000\
 "]
