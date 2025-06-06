@@ -8,7 +8,7 @@ export default function SettingsModal() {
       <Dialog.Trigger asChild>
         <Button>Settings</Button>
       </Dialog.Trigger>
-      <Dialog.Content className="rounded-2xl bg-background p-4 shadow">
+      <Dialog.Content className="rounded-2xl bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 shadow">
         <Dialog.Title className="text-lg font-bold">Settings & FAQ</Dialog.Title>
         <p className="mt-2 text-sm">Coming soon...</p>
         <Dialog.Close asChild>

@@ -13,7 +13,7 @@ const items = [
 export default function Sidebar() {
   const { mode, setMode } = useContext(ChatContext);
   return (
-    <aside className="hidden w-16 flex-col border-r py-4 md:flex">
+    <aside className="hidden w-16 flex-col border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 py-4 md:flex">
       {items.map(({ mode: m, icon: Icon, label }) => (
         <button
           key={m}

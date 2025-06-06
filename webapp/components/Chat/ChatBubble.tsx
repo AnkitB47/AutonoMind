@@ -12,7 +12,9 @@ export default function ChatBubble({ isUser, children }: Props) {
     hidden: { opacity: 0, y: 10 },
     visible: { opacity: 1, y: 0 }
   };
-  const base = isUser ? 'bg-primary text-primary-foreground ml-auto' : 'bg-muted';
+  const base = isUser
+    ? 'bg-blue-500 text-white ml-auto dark:bg-blue-600'
+    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100';
   const MotionDiv = motion<HTMLDivElement>('div');
   return (
     <MotionDiv

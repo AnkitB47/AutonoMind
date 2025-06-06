@@ -95,7 +95,7 @@ jobs:
           echo "⌛ Polling pod status for ID: $POD_ID..."
           for i in {1..45}; do
             echo "🔁 Poll attempt $i..."
-            sleep 60
+            sleep 120
 
             STATUS_QUERY="{\"query\":\"query PodStatus { pod(input: { podId: \\\"$POD_ID\\\" }) { desiredStatus runtime { ports { ip isIpPublic publicPort privatePort type } } } }\"}"
             response=$(curl -s -X POST "https://api.runpod.io/graphql" \

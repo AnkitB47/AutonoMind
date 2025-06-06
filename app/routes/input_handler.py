@@ -2,7 +2,7 @@
 import requests
 import streamlit as st
 from fastapi import APIRouter, UploadFile, File
-from agents import mcp_server
+from agents import mcp_server, search_agent, translate_agent
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live
@@ -43,6 +43,15 @@ async def handle_image_input(file: UploadFile = File(...), lang: str = "en"):
         image_text = extract_image_text(image_bytes)
     result = mcp_server.route_with_langgraph(image_text, lang)
     return {"response": result}
+
+
+@router.post("/search")
+async def handle_search_input(payload: dict):
+    query = payload.get("query")
+    lang = payload.get("lang", "en")
+    result = search_agent.handle_query(query)
+    translated = translate_agent.translate_response(result, lang)
+    return {"response": translated}
 
 
 def render():

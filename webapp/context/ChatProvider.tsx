@@ -1,6 +1,10 @@
 'use client';
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { sendTextMessage, uploadFile as uploadFileSvc, sendVoice as sendVoiceSvc } from '../services/chatService';
+import {
+  sendTextMessage,
+  uploadFile as uploadFileSvc,
+  sendVoice as sendVoiceSvc,
+} from '../services/chatService';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
@@ -14,6 +18,8 @@ interface ChatCtx {
   messages: Message[];
   loading: boolean;
   error: string | null;
+  language: string;
+  setLanguage: (l: string) => void;
   setMode: (m: Mode) => void;
   sendMessage: (text: string) => void;
   sendVoice: (blob: Blob) => void;
@@ -28,13 +34,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState('en');
 
   const sendMessage = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', content: text }]);
     setLoading(true);
     setError(null);
     try {
-      const res = await sendTextMessage(text);
+      const res = await sendTextMessage(text, language);
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -48,7 +55,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await sendVoiceSvc(blob);
+      const res = await sendVoiceSvc(blob, language);
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -62,7 +69,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await uploadFileSvc(file);
+      const res = await uploadFileSvc(file, language);
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -80,6 +87,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         messages,
         loading,
         error,
+        language,
+        setLanguage,
         setMode,
         sendMessage,
         sendVoice,
