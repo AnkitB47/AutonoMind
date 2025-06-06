@@ -35,6 +35,7 @@ google-generativeai>=0.8.5
 pymupdf>=1.23.0
 pypdf
 pillow
+google-api-python-client>=2.0
 
 # --- Development & Quality ---
 black

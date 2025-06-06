@@ -16,7 +16,7 @@ WORKDIR /deps
 COPY requirements-cpu.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir faiss-cpu \
-    && pip install --no-cache-dir -r requirements-cpu.txt
+    && pip install --no-cache-dir --use-pep517 -r requirements-cpu.txt
 
 # --- Final runtime image ---
 FROM python:3.10-slim

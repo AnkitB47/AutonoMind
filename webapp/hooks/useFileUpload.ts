@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { uploadFile as uploadFileSvc } from '../services/chatService';
+import { ChatContext } from '../context/ChatProvider';
 import { validateFile } from '../utils/validateFile';
 
 /**
@@ -10,6 +11,7 @@ import { validateFile } from '../utils/validateFile';
 export default function useFileUpload() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  const { language } = useContext(ChatContext);
 
   const upload = async (file: File) => {
     if (!validateFile(file)) {
@@ -18,7 +20,7 @@ export default function useFileUpload() {
     }
     setLoading(true);
     try {
-      const res = await uploadFileSvc(file);
+      const res = await uploadFileSvc(file, language);
       setResult(res);
     } catch (err) {
       setResult('error');
