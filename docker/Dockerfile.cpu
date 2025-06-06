@@ -31,10 +31,12 @@ ENV PYTHONPATH=/workspace
 ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
-# 1) Copy Node.js runtime from the builder image
-COPY --from=frontend-builder /usr/local/bin/node /usr/local/bin/node
-COPY --from=frontend-builder /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=frontend-builder /usr/local/lib/node_modules /usr/local/lib/node_modules
+# 1) Install Node.js runtime via NodeSource
+RUN apt-get update \
+    && apt-get install -y curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 ENV PATH="/usr/local/bin:$PATH"
 ENV NODE_ENV=production
 
