@@ -1,5 +1,5 @@
 # --- .github/workflows/deploy.yml ---
-name: 🚀 CI/CD - Deploy to Fly.io (CPU)
+name: CI/CD - Deploy to Fly.io (CPU)
 
 on:
   workflow_dispatch:

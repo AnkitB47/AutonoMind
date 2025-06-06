@@ -1,9 +1,10 @@
-name: 🚀 CI/CD - Deploy GPU Agent to RunPod (Secure Cloud)
+name: CI/CD - Deploy GPU Agent to RunPod (Secure Cloud)
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["CI/CD - Deploy to Fly.io (CPU)"]
+    types:
+      - completed
 
 jobs:
   deploy-gpu:
