@@ -1,0 +1,73 @@
+# Version control
+.git
+
+# Python cache and artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.sqlite3
+*.db
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.venv
+
+# OS and IDE files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Logs and runtime files
+*.log
+*.pid
+*.bak
+*.tmp
+nohup.out
+
+# Docker compose files and data
+*.tar
+docker-compose.override.yml
+docker-compose.*
+docker/data/
+docker/cache/
+
+# Streamlit cache
+.streamlit/
+.stcache/
+.stcache/*
+
+# Whisper & audio files
+*.wav
+*.mp3
+*.webm
+*.m4a
+tmp_*
+
+# FAISS vector database
+faiss_db/
+*.index
+
+# LangChain / Langfuse artifacts
+langchain_logs/
+langfuse_exports/
+langfuse.db
+
+# Model downloads
+checkpoints/
+cache/
+*.pt
+*.bin
+*.ckpt
+
+# Node artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+webapp/node_modules/
+webapp/.next/
+webapp/out/
