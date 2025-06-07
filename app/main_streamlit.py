@@ -11,7 +11,7 @@ api_app.include_router(input_handler.router)
 def _run_api():
     uvicorn.run(api_app, host="0.0.0.0", port=8080, log_level="info")
 
-@st.experimental_singleton
+@st.cache_resource
 def start_api():
     t = threading.Thread(target=_run_api, daemon=True)
     t.start()
