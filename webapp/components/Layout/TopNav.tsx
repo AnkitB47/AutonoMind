@@ -4,7 +4,7 @@ import { useContext } from 'react';
 import { ChatContext } from '../../context/ChatProvider';
 
 export default function TopNav() {
-  const { language, setLanguage } = useContext(ChatContext);
+  const { language, setLanguage, apiChoice, setApiChoice } = useContext(ChatContext);
   return (
     <nav className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow text-gray-900 dark:text-gray-100">
       <div className="font-bold">AutonoMind</div>
@@ -18,6 +18,14 @@ export default function TopNav() {
           <option value="de">DE</option>
           <option value="fr">FR</option>
           <option value="hi">HI</option>
+        </select>
+        <select
+          value={apiChoice}
+          onChange={(e) => setApiChoice(e.target.value as 'fastapi' | 'streamlit')}
+          className="rounded border px-2 py-1 text-sm"
+        >
+          <option value="streamlit">Streamlit</option>
+          <option value="fastapi">FastAPI</option>
         </select>
         <ThemeToggle />
       </div>

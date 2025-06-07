@@ -19,7 +19,9 @@ interface ChatCtx {
   loading: boolean;
   error: string | null;
   language: string;
+  apiChoice: 'fastapi' | 'streamlit';
   setLanguage: (l: string) => void;
+  setApiChoice: (c: 'fastapi' | 'streamlit') => void;
   setMode: (m: Mode) => void;
   sendMessage: (text: string) => void;
   sendVoice: (blob: Blob) => void;
@@ -35,13 +37,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('en');
+  const [apiChoice, setApiChoice] = useState<'fastapi' | 'streamlit'>('streamlit');
 
   const sendMessage = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', content: text }]);
     setLoading(true);
     setError(null);
     try {
-      const res = await sendTextMessage(text, language);
+      const res = await sendTextMessage(text, language, apiChoice);
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -88,7 +91,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         language,
+        apiChoice,
         setLanguage,
+        setApiChoice,
         setMode,
         sendMessage,
         sendVoice,

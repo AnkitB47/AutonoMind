@@ -10,6 +10,8 @@ services:
         - "project=AutonoMindAI"
     ports:
       - "8080:8080"
+      - "3000:3000"
+      - "8000:8000"
     runtime: nvidia
     environment:
       - USE_GPU=True

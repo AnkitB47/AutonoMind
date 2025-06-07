@@ -1,7 +1,12 @@
-import { fastApi, streamlitApi } from './apiClient';
+import { fastApi, getChatApi } from './apiClient';
 
-export async function sendTextMessage(text: string, lang: string) {
-  const { data } = await streamlitApi.post('/input/text', { query: text, lang });
+export async function sendTextMessage(
+  text: string,
+  lang: string,
+  choice: 'fastapi' | 'streamlit'
+) {
+  const api = getChatApi(choice);
+  const { data } = await api.post('/input/text', { query: text, lang });
   return data.response || '...';
 }
 
@@ -13,16 +18,26 @@ export async function sendVoice(blob: Blob, lang: string) {
   return data.response || data.message || '...';
 }
 
-export async function sendVoiceFile(file: Blob, lang: string) {
+export async function sendVoiceFile(
+  file: Blob,
+  lang: string,
+  choice: 'fastapi' | 'streamlit'
+) {
+  const api = getChatApi(choice);
   const form = new FormData();
   form.append('file', file);
   form.append('lang', lang);
-  const { data } = await streamlitApi.post('/input/voice', form);
+  const { data } = await api.post('/input/voice', form);
   return data.response || '...';
 }
 
-export async function sendSearchQuery(query: string, lang: string) {
-  const { data } = await streamlitApi.post('/input/search', { query, lang });
+export async function sendSearchQuery(
+  query: string,
+  lang: string,
+  choice: 'fastapi' | 'streamlit'
+) {
+  const api = getChatApi(choice);
+  const { data } = await api.post('/input/search', { query, lang });
   return data.response || '...';
 }
 
