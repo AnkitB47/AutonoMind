@@ -23,6 +23,7 @@ export default function ChatWindow() {
         ))}
         {loading && (
           <ChatBubble>
+            <span className="mr-2">Thinking…</span>
             <LoaderDots />
           </ChatBubble>
         )}

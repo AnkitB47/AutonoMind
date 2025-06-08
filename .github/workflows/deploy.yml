@@ -36,5 +36,4 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           flyctl deploy -c fly.toml --remote-only --no-cache \
-            --build-arg NEXT_PUBLIC_FASTAPI_URL=${{ secrets.FASTAPI_URL }} \
-            --build-arg NEXT_PUBLIC_STREAMLIT_URL=${{ secrets.STREAMLIT_URL }}
+            --build-arg NEXT_PUBLIC_FASTAPI_URL=${{ secrets.FASTAPI_URL }}

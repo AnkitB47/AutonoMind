@@ -1,7 +1,7 @@
 # --- app/main_fastapi.py ---
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import input_handler, file_upload
+from app.routes import input_handler, file_upload, chat_api
 
 app = FastAPI(
     title="AutonoMind API",
@@ -27,3 +27,4 @@ def root():
 # Include routes
 app.include_router(input_handler.router)
 app.include_router(file_upload.router)
+app.include_router(chat_api.router)

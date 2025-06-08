@@ -1,52 +1,37 @@
-import { fastApi, getChatApi } from './apiClient';
+import { fastApi } from './apiClient';
 
-export async function sendTextMessage(
-  text: string,
-  lang: string,
-  choice: 'fastapi' | 'streamlit'
-) {
-  const api = getChatApi(choice);
-  const { data } = await api.post('/input/text', { query: text, lang });
-  return data.response || '...';
+export async function sendTextMessage(text: string, lang: string) {
+  const { data } = await fastApi.post('/chat', { message: text });
+  return data.reply || '...';
 }
 
 export async function sendVoice(blob: Blob, lang: string) {
   const form = new FormData();
   form.append('file', blob, 'audio.webm');
-  form.append('lang', lang);
-  const { data } = await fastApi.post('/input/voice', form);
-  return data.response || data.message || '...';
+  const { data } = await fastApi.post('/transcribe', form);
+  const text = data.text || '';
+  const { data: chat } = await fastApi.post('/chat', { message: text });
+  return chat.reply || '...';
 }
 
-export async function sendVoiceFile(
-  file: Blob,
-  lang: string,
-  choice: 'fastapi' | 'streamlit'
-) {
-  const api = getChatApi(choice);
+export async function sendVoiceFile(file: Blob, lang: string) {
   const form = new FormData();
   form.append('file', file);
   form.append('lang', lang);
-  const { data } = await api.post('/input/voice', form);
+  const { data } = await fastApi.post('/input/voice', form);
   return data.response || '...';
 }
 
-export async function sendSearchQuery(
-  query: string,
-  lang: string,
-  choice: 'fastapi' | 'streamlit'
-) {
-  const api = getChatApi(choice);
-  const { data } = await api.post('/input/search', { query, lang });
-  return data.response || '...';
+export async function sendSearchQuery(query: string, lang: string) {
+  const { data } = await fastApi.post('/search/web', { query });
+  return JSON.stringify(data.results) || '...';
 }
 
 export async function sendImageFile(file: File, lang: string) {
   const form = new FormData();
   form.append('file', file);
-  form.append('lang', lang);
-  const { data } = await fastApi.post('/input/image', form);
-  return data.response || 'uploaded';
+  const { data } = await fastApi.post('/ocr', form);
+  return data.text || 'uploaded';
 }
 
 export async function uploadPdfFile(file: File, lang: string) {

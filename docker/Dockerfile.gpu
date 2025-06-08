@@ -4,9 +4,7 @@
 FROM node:lts AS frontend-builder
 WORKDIR /build/webapp
 ARG NEXT_PUBLIC_FASTAPI_URL
-ARG NEXT_PUBLIC_STREAMLIT_URL
 ENV NEXT_PUBLIC_FASTAPI_URL=${NEXT_PUBLIC_FASTAPI_URL}
-ENV NEXT_PUBLIC_STREAMLIT_URL=${NEXT_PUBLIC_STREAMLIT_URL}
 COPY webapp/package*.json ./
 RUN npm ci
 COPY webapp .
@@ -24,9 +22,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
 ARG NEXT_PUBLIC_FASTAPI_URL
-ARG NEXT_PUBLIC_STREAMLIT_URL
 ENV NEXT_PUBLIC_FASTAPI_URL=${NEXT_PUBLIC_FASTAPI_URL}
-ENV NEXT_PUBLIC_STREAMLIT_URL=${NEXT_PUBLIC_STREAMLIT_URL}
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -60,10 +56,10 @@ COPY --from=frontend-builder /build/webapp ./webapp
 # 5) Ensure FAISS index directory exists
 RUN mkdir -p /data
 
-# 6) Expose ports for FastAPI (8000), Streamlit (8080), and webapp preview (3000)
+# 6) Expose ports for FastAPI (8000), Streamlit (8080), and Next.js (3000)
 EXPOSE 8000 8080 3000
 
-# 7) Launch FastAPI + Streamlit + webapp preview
+# 7) Launch FastAPI + Streamlit + Next.js frontend
 CMD bash -c "\
     uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
     streamlit run app/main_streamlit.py \
@@ -72,5 +68,5 @@ CMD bash -c "\
       --server.enableCORS=false \
       --server.enableXsrfProtection=false \
       --server.headless=true & \
-    cd webapp && npm start -- -H 0.0.0.0 -p 3000\
+    cd webapp && npx next start --hostname 0.0.0.0 --port 3000\
 "
