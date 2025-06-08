@@ -4,7 +4,6 @@ app = "autonomind"
   dockerfile = "docker/Dockerfile.cpu"
 
 [env]
-  PORT = "8080"
   NEXT_PUBLIC_FASTAPI_URL = "http://localhost:8000"
 
 [experimental]
@@ -32,7 +31,7 @@ app = "autonomind"
   # Expose it directly on 8000 to hit it from outside
   [[services.ports]]
     port     = 8000
-    handlers = ["http"]
+    handlers = ["tls", "http"]
 
 # ─────────── Next.js Frontend ─────
 [[services]]
@@ -42,4 +41,4 @@ app = "autonomind"
   # Expose Next.js at port 3000
   [[services.ports]]
     port     = 3000
-    handlers = ["http"]
+    handlers = ["tls", "http"]

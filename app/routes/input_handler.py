@@ -10,7 +10,7 @@ from app.config import Settings
 
 settings = Settings()
 RUNPOD_URL = settings.RUNPOD_URL
-router = APIRouter(prefix="/input", tags=["input"])
+router = APIRouter(prefix="/input", tags=["input"], trailing_slash=False)
 
 
 @router.post("/text")

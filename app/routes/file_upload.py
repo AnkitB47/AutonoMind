@@ -4,7 +4,7 @@ from fastapi import APIRouter, UploadFile
 from agents.rag_agent import process_file
 import asyncio
 
-router = APIRouter()
+router = APIRouter(trailing_slash=False)
 
 
 @router.post("/upload")

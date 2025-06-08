@@ -7,7 +7,7 @@ from agents import rag_agent, search_agent
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 
-router = APIRouter()
+router = APIRouter(trailing_slash=False)
 
 
 class Question(BaseModel):
