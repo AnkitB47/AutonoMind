@@ -15,6 +15,14 @@ embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
 splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
 
 def ingest_text_to_faiss(text: str, namespace: str = None):
+    """Embed ``text`` and persist to the FAISS index.
+
+    The FAISS store used for retrieval is cached globally in
+    :mod:`vectorstore.faiss_store`. Importing within this function avoids
+    circular imports when updating that cache.
+    """
+    # Import here to prevent circular dependency at module load time
+    from vectorstore import faiss_store
     if not text.strip():
         return
 
@@ -28,4 +36,6 @@ def ingest_text_to_faiss(text: str, namespace: str = None):
         db = FAISS.from_documents(docs, embedding_model)
 
     db.save_local(FAISS_INDEX_PATH)
+    # Update the global FAISS cache so new docs are immediately searchable
+    faiss_store.store = db
     print(f"FAISS count: {db.index.ntotal}")

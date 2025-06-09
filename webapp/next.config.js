@@ -2,8 +2,15 @@
 const nextConfig = {
   reactStrictMode: true,
 
-  env: {
-    NEXT_PUBLIC_FASTAPI_URL: process.env.NEXT_PUBLIC_FASTAPI_URL
+  async rewrites() {
+    // Always proxy /api/* to the local FastAPI instance. The frontend detects
+    // the real API URL at runtime via getApiBase.ts.
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8000/:path*',
+      },
+    ];
   }
 };
 

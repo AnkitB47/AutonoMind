@@ -16,8 +16,10 @@ Starting `gpu_server.py` or `app/main_streamlit.py` directly exposes only utilit
 
 The frontend detects the API URL at runtime. When `NEXT_PUBLIC_FASTAPI_URL` is
 set (for example during local development) it will be used for server-side
-requests. In the browser, the frontend falls back to the origin that served the
-page.
+requests. In production you can leave this variable unset and the frontend will
+route `/api/*` requests through the Next.js server, which proxies to the local
+FastAPI instance. To explicitly point to a remote API, set
+`NEXT_PUBLIC_FASTAPI_URL` to your public RunPod proxy URL.
 
 ```bash
 NEXT_PUBLIC_FASTAPI_URL=http://localhost:8000 npm run dev

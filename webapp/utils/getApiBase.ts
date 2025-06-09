@@ -1,8 +1,10 @@
 export function getApiBase(): string {
   const envUrl = process.env.NEXT_PUBLIC_FASTAPI_URL;
-  if (envUrl) return envUrl;
+  if (envUrl && !envUrl.includes('localhost')) return envUrl;
+  // When running in the browser fall back to the Next.js proxy
   if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.host}`;
+    return '/api';
   }
-  return '';
+  // During server side rendering default to the local FastAPI instance
+  return 'http://localhost:8000';
 }
