@@ -57,6 +57,26 @@ def search_faiss(query: str, namespace: str | None = None):
     return best_doc.page_content.strip()
 
 
+def search_faiss_with_score(query: str, namespace: str | None = None):
+    """Return best matching text and a confidence score."""
+    load_or_create_faiss()
+    docs_and_scores = store.similarity_search_with_score(query, k=5)
+
+    if namespace:
+        docs_and_scores = [
+            (doc, score)
+            for doc, score in docs_and_scores
+            if doc.metadata.get("source") == namespace
+        ]
+
+    if not docs_and_scores:
+        return None, 0.0
+
+    best_doc, best_score = min(docs_and_scores, key=lambda x: x[1])
+    confidence = 1 / (1 + best_score)
+    return best_doc.page_content.strip(), confidence
+
+
 def generate_faiss_index(docs: list[str]):
     """Generate and save a new FAISS index from a list of strings."""
     global store

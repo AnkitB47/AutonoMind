@@ -23,10 +23,9 @@ class SearchPayload(BaseModel):
 
 
 @router.post("/rag/query")
-async def rag_query(payload: Question) -> Dict[str, str | float]:
-    answer = rag_agent.handle_text(payload.question)
-    return {"answer": answer, "confidence": 0.8}
-
+async def rag_query(payload: Question) -> Dict[str, float | str]:
+    answer, conf = rag_agent.query_with_confidence(payload.question)
+    return {"answer": answer, "confidence": conf}
 
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)) -> Dict[str, str]:
@@ -67,11 +66,10 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-async def chat_endpoint(payload: ChatRequest) -> Dict[str, str]:
-    rag_resp = await rag_query(Question(question=payload.message))
-    if rag_resp["confidence"] >= 0.6 and "i don't know" not in rag_resp["answer"].lower():
-        return {"reply": rag_resp["answer"]}
+async def chat_endpoint(payload: ChatRequest) -> Dict[str, float | str]:
+    answer, conf = rag_agent.query_with_confidence(payload.message)
+    if conf < 0.3 or "no match" in answer.lower():
+        answer = search_agent.handle_query(payload.message)
 
-    # Fallback to web search
-    search_resp = search_agent.search_web(payload.message)
-    return {"reply": search_resp}
+    rag_agent.save_memory(payload.message, answer)
+    return {"reply": answer, "confidence": conf}

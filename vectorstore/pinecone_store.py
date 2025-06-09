@@ -36,6 +36,22 @@ def search_pinecone(query, namespace=None):
     return best_doc.page_content.strip()
 
 
+def search_pinecone_with_score(query, namespace=None):
+    """Return best matching text and confidence score from Pinecone."""
+    vectorstore = PineconeVectorStore.from_existing_index(
+        index_name=index_name,
+        embedding=embedding_model,
+        namespace=namespace or default_namespace
+    )
+    docs_and_scores = vectorstore.similarity_search_with_score(query, k=5)
+    if not docs_and_scores:
+        return None, 0.0
+
+    best_doc, best_score = min(docs_and_scores, key=lambda x: x[1])
+    confidence = 1 / (1 + best_score)
+    return best_doc.page_content.strip(), confidence
+
+
 def upsert_document(text, namespace=None, metadata=None):
     docs = [Document(page_content=chunk, metadata=metadata or {})
             for chunk in text_splitter.split_text(text)]

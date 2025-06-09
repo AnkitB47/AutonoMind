@@ -1,6 +1,13 @@
 # --- agents/rag_agent.py ---
-from vectorstore.pinecone_store import search_pinecone, ingest_pdf_text_to_pinecone as ingest_pdf_to_pinecone
-from vectorstore.faiss_store import search_faiss
+from vectorstore.pinecone_store import (
+    search_pinecone,
+    search_pinecone_with_score,
+    ingest_pdf_text_to_pinecone as ingest_pdf_to_pinecone,
+)
+from vectorstore.faiss_store import (
+    search_faiss,
+    search_faiss_with_score,
+)
 from agents import search_agent
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from langchain_community.document_loaders import PyPDFLoader
@@ -76,3 +83,28 @@ def handle_text(text: str, namespace: str | None = None):
         f"Pinecone:\n{result_pc or 'No match found'}"
         f"\n\nFAISS:\n{result_faiss or 'No match found'}"
     )
+
+
+def query_with_confidence(text: str):
+    """Return best RAG answer and confidence across all namespaces."""
+    best_answer = None
+    best_conf = 0.0
+
+    pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
+    if pc_conf > best_conf:
+        best_answer, best_conf = pc_ans, pc_conf
+
+    for ns in ["pdf", "image", "memory"]:
+        ans, conf = search_faiss_with_score(text, namespace=ns)
+        if conf > best_conf:
+            best_answer, best_conf = ans, conf
+
+    if not best_answer:
+        return "No match found", 0.0
+
+    return best_answer, best_conf
+
+
+def save_memory(question: str, answer: str):
+    """Persist Q&A pair into FAISS memory namespace."""
+    ingest_text_to_faiss(f"Q: {question}\nA: {answer}", namespace="memory")
