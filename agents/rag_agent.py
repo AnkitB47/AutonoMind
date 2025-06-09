@@ -1,6 +1,7 @@
 # --- agents/rag_agent.py ---
 from vectorstore.pinecone_store import search_pinecone, ingest_pdf_text_to_pinecone as ingest_pdf_to_pinecone
 from vectorstore.faiss_store import search_faiss
+from agents import search_agent
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from langchain_community.document_loaders import PyPDFLoader
 from models.gemini_vision import extract_image_text, describe_image
@@ -45,4 +46,15 @@ def handle_text(text: str):
     # Query PDF namespace by default so uploaded files are considered
     result_pc = search_pinecone(text, namespace="pdf")
     result_faiss = search_faiss(text)
-    return f"Pinecone:\n{result_pc or 'No match found'}\n\nFAISS:\n{result_faiss or 'No match found'}"
+
+    pc_no_match = "no match found" in result_pc.lower()
+    faiss_no_match = "no faiss match found" in result_faiss.lower()
+
+    if pc_no_match and faiss_no_match:
+        # Full multi‐engine fallback: ArXiv → Semantic Scholar → Web
+        return search_agent.handle_query(text)
+
+    return (
+        f"Pinecone:\n{result_pc or 'No match found'}"
+        f"\n\nFAISS:\n{result_faiss or 'No match found'}"
+    )

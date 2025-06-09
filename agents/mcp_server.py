@@ -19,7 +19,11 @@ def route_with_langgraph(text: str, lang: str = "en"):
     # --- Node 1: Classify and route query ---
     def classify_and_route(state: InputState):
         query = state.get("input", "")
-        if any(word in query.lower() for word in ["pdf", "document", "image"]):
+        lower = query.lower()
+
+        if "image" in lower:
+            result = rag_agent.handle_text(query, namespace="image")
+        elif any(word in lower for word in ["pdf", "document"]):
             result = rag_agent.handle_text(query)
         else:
             result = search_agent.handle_query(query)

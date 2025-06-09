@@ -25,11 +25,7 @@ class SearchPayload(BaseModel):
 @router.post("/rag/query")
 async def rag_query(payload: Question) -> Dict[str, str | float]:
     answer = rag_agent.handle_text(payload.question)
-    conf = 0.8
-    low_markers = ["no match", "no faiss", "no pinecone", "don't know"]
-    if any(m in answer.lower() for m in low_markers):
-        conf = 0.3
-    return {"answer": answer, "confidence": conf}
+    return {"answer": answer, "confidence": 0.8}
 
 
 @router.post("/ocr")

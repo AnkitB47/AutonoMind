@@ -28,10 +28,22 @@ def load_or_create_faiss():
         print(f"⚠️  FAISS index not found. Creating dummy index at {FAISS_INDEX_PATH}")
         generate_faiss_index(["This is a fallback document."])
 
-def search_faiss(query: str):
-    """Query the FAISS index and return the best match."""
+def search_faiss(query: str, namespace: str | None = None):
+    """Query the FAISS index and return the best match.
+
+    When ``namespace`` is provided, only documents with a matching ``source``
+    metadata field are considered.
+    """
     load_or_create_faiss()
     docs_and_scores = store.similarity_search_with_score(query, k=5)
+
+    if namespace:
+        docs_and_scores = [
+            (doc, score)
+            for doc, score in docs_and_scores
+            if doc.metadata.get("source") == namespace
+        ]
+
     if not docs_and_scores:
         return "No FAISS match found"
 
