@@ -25,6 +25,7 @@ langchain-text-splitters>=0.0.1
 pinecone-client>=3.0.0
 openai
 tiktoken
+faiss-cpu
 sentence-transformers
 transformers>=4.40.0  # Compatible with Gemini & Whisper models
 
