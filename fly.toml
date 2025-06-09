@@ -3,9 +3,6 @@ app = "autonomind"
 [build]
   dockerfile = "docker/Dockerfile.cpu"
 
-[env]
-  NEXT_PUBLIC_FASTAPI_URL = "http://localhost:8000"
-
 [experimental]
   auto_rollback = true
 

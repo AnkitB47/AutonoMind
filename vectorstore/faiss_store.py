@@ -29,10 +29,14 @@ def load_or_create_faiss():
         generate_faiss_index(["This is a fallback document."])
 
 def search_faiss(query: str):
-    """Query the FAISS index."""
+    """Query the FAISS index and return the best match."""
     load_or_create_faiss()
-    results = store.similarity_search(query, k=3)
-    return results[0].page_content if results else "No FAISS match found"
+    docs_and_scores = store.similarity_search_with_score(query, k=5)
+    if not docs_and_scores:
+        return "No FAISS match found"
+
+    best_doc, _ = max(docs_and_scores, key=lambda x: x[1])
+    return best_doc.page_content.strip()
 
 def generate_faiss_index(docs: list[str]):
     """Generate and save a new FAISS index from a list of strings."""

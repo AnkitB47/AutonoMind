@@ -14,7 +14,10 @@ Starting `gpu_server.py` or `app/main_streamlit.py` directly exposes only utilit
 
 ## Frontend configuration
 
-The frontend reads the API base URL from `NEXT_PUBLIC_FASTAPI_URL`. Set it to the same host and port as the FastAPI server, for example:
+The frontend detects the API URL at runtime. When `NEXT_PUBLIC_FASTAPI_URL` is
+set (for example during local development) it will be used for server-side
+requests. In the browser, the frontend falls back to the origin that served the
+page.
 
 ```bash
 NEXT_PUBLIC_FASTAPI_URL=http://localhost:8000 npm run dev

@@ -23,7 +23,7 @@ async def process_file(file):
     if suffix == "pdf":
         loader = PyPDFLoader(path)
         docs = loader.load()
-        text = docs[0].page_content
+        text = "\n".join(page.page_content for page in docs)
         ingest_pdf_to_pinecone(text, namespace="pdf")
         ingest_text_to_faiss(text, namespace="pdf")
         return "✅ PDF ingested into Pinecone & FAISS."
@@ -42,6 +42,7 @@ async def process_file(file):
 
 
 def handle_text(text: str):
-    result_pc = search_pinecone(text)
+    # Query PDF namespace by default so uploaded files are considered
+    result_pc = search_pinecone(text, namespace="pdf")
     result_faiss = search_faiss(text)
     return f"Pinecone:\n{result_pc or 'No match found'}\n\nFAISS:\n{result_faiss or 'No match found'}"

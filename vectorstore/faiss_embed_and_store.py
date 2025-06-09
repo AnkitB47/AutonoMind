@@ -11,7 +11,8 @@ settings = Settings()
 
 FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
-splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+# Use slightly larger chunks with overlap for better contextual retrieval
+splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
 
 def ingest_text_to_faiss(text: str, namespace: str = None):
     if not text.strip():
@@ -27,3 +28,4 @@ def ingest_text_to_faiss(text: str, namespace: str = None):
         db = FAISS.from_documents(docs, embedding_model)
 
     db.save_local(FAISS_INDEX_PATH)
+    print(f"FAISS count: {db.index.ntotal}")

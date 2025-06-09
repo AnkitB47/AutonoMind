@@ -17,17 +17,23 @@ pc = Pinecone(api_key=settings.PINECONE_API_KEY)
 index_name = settings.PINECONE_INDEX_NAME
 default_namespace = os.getenv("PINECONE_NAMESPACE", "default")
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+# Match FAISS chunk strategy for consistency
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
 
 
 def search_pinecone(query, namespace=None):
+    """Search Pinecone and return the best matching chunk."""
     vectorstore = PineconeVectorStore.from_existing_index(
         index_name=index_name,
         embedding=embedding_model,
         namespace=namespace or default_namespace
     )
-    results = vectorstore.similarity_search(query, k=3)
-    return results[0].page_content if results else "No match found"
+    docs_and_scores = vectorstore.similarity_search_with_score(query, k=5)
+    if not docs_and_scores:
+        return "No match found"
+
+    best_doc, _ = max(docs_and_scores, key=lambda x: x[1])
+    return best_doc.page_content.strip()
 
 
 def upsert_document(text, namespace=None, metadata=None):
@@ -40,6 +46,8 @@ def upsert_document(text, namespace=None, metadata=None):
         namespace=namespace or default_namespace
     )
     vectorstore.add_documents(documents=docs)
+    stats = pc.Index(index_name).describe_index_stats()
+    print(f"Pinecone count: {stats['total_vector_count']}")
 
 
 def ingest_pdf_text_to_pinecone(text, namespace=None, source=""):
