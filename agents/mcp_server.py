@@ -7,10 +7,12 @@ from app.config import Settings
 
 settings = Settings()
 
+
 # ✅ LangGraph input state type
 class InputState(TypedDict):
     input: str
     lang: str
+
 
 # ✅ LangGraph routing logic
 def route_with_langgraph(text: str, lang: str = "en"):
@@ -24,7 +26,7 @@ def route_with_langgraph(text: str, lang: str = "en"):
         if "image" in lower:
             result = rag_agent.handle_text(query, namespace="image")
         elif any(word in lower for word in ["pdf", "document"]):
-            result = rag_agent.handle_text(query)
+            result = rag_agent.handle_text(query, namespace="pdf")
         else:
             result = search_agent.handle_query(query)
         return {"input": result, "lang": state.get("lang")}

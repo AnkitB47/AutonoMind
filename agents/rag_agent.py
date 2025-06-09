@@ -7,6 +7,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from models.gemini_vision import extract_image_text, describe_image
 import tempfile
 import inspect
+import os
 
 
 async def process_file(file):
@@ -15,7 +16,11 @@ async def process_file(file):
 
     # ✅ Handle Streamlit (sync) or FastAPI (async)
     read_method = file.read
-    data = await read_method() if inspect.iscoroutinefunction(read_method) else read_method()
+    data = (
+        await read_method()
+        if inspect.iscoroutinefunction(read_method)
+        else read_method()
+    )
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
         tmp.write(data)
@@ -27,25 +32,38 @@ async def process_file(file):
         text = "\n".join(page.page_content for page in docs)
         ingest_pdf_to_pinecone(text, namespace="pdf")
         ingest_text_to_faiss(text, namespace="pdf")
+        os.remove(path)
         return "✅ PDF ingested into Pinecone & FAISS."
 
     elif suffix in ["jpg", "jpeg", "png"]:
         extracted = extract_image_text(path)
         if extracted and len(extracted.split()) > 5:
             ingest_text_to_faiss(extracted, namespace="image")
+            os.remove(path)
             return "✅ Image description ingested into FAISS."
         else:
             description = describe_image(path)
             ingest_text_to_faiss(description, namespace="image")
+            os.remove(path)
             return "✅ Gemini description ingested into FAISS."
 
     return "❌ Unsupported file format."
 
 
-def handle_text(text: str):
-    # Query PDF namespace by default so uploaded files are considered
-    result_pc = search_pinecone(text, namespace="pdf")
-    result_faiss = search_faiss(text)
+def handle_text(text: str, namespace: str | None = None):
+    """Search uploaded content via FAISS/Pinecone.
+
+    The optional ``namespace`` argument limits FAISS results to a specific
+    namespace (e.g. ``"image"`` or ``"pdf"``). Pinecone is only queried when the
+    namespace is ``None`` or ``"pdf"`` since it currently stores PDF data only.
+    """
+
+    result_pc = "No match found"
+    if namespace in (None, "pdf"):
+        # Query PDF namespace by default so uploaded files are considered
+        result_pc = search_pinecone(text, namespace="pdf")
+
+    result_faiss = search_faiss(text, namespace=namespace)
 
     pc_no_match = "no match found" in result_pc.lower()
     faiss_no_match = "no faiss match found" in result_faiss.lower()
