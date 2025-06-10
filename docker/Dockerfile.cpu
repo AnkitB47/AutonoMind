@@ -28,11 +28,15 @@ ENV FAISS_INDEX_PATH=/data/vector.index
 WORKDIR /workspace
 
 # 1) Install Node.js runtime via NodeSource
-RUN apt-get update \
-    && apt-get install -y curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# 1) System packages and Node.js runtime
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
+        git wget curl \
+        ffmpeg libsndfile1 libgl1 jq \
+        ca-certificates && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 ENV PATH="/usr/local/bin:$PATH"
 ENV NODE_ENV=production
 

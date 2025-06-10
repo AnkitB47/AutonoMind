@@ -12,20 +12,24 @@ router = APIRouter()
 
 class Question(BaseModel):
     question: str
+    session_id: str | None = None
 
 
 class TextPayload(BaseModel):
     text: str
+    session_id: str | None = None
 
 
 class SearchPayload(BaseModel):
     query: str
+    session_id: str | None = None
 
 
 @router.post("/rag/query")
 async def rag_query(payload: Question) -> Dict[str, float | str]:
-    answer, conf = rag_agent.query_with_confidence(payload.question)
+    answer, conf = rag_agent.query_with_confidence(payload.question, session_id=payload.session_id)
     return {"answer": answer, "confidence": conf}
+
 
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)) -> Dict[str, str]:
@@ -58,18 +62,20 @@ async def search_image(payload: SearchPayload) -> Dict[str, List[Dict[str, str]]
 @router.post("/voice/assist")
 async def voice_assist(payload: TextPayload) -> Dict[str, str]:
     reply = search_agent.handle_query(payload.text)
+    rag_agent.save_memory(payload.text, reply, session_id=payload.session_id)
     return {"reply": reply}
 
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: str | None = None
 
 
 @router.post("/chat")
 async def chat_endpoint(payload: ChatRequest) -> Dict[str, float | str]:
-    answer, conf = rag_agent.query_with_confidence(payload.message)
+    answer, conf = rag_agent.query_with_confidence(payload.message, session_id=payload.session_id)
     if conf < 0.3 or "no match" in answer.lower():
         answer = search_agent.handle_query(payload.message)
 
-    rag_agent.save_memory(payload.message, answer)
+    rag_agent.save_memory(payload.message, answer, session_id=payload.session_id)
     return {"reply": answer, "confidence": conf}

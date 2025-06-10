@@ -17,31 +17,32 @@ router = APIRouter(prefix="/input", tags=["input"])
 async def handle_text_input(payload: dict):
     query = payload.get("query")
     lang = payload.get("lang", "en")
-    result = mcp_server.route_with_langgraph(query, lang)
+    session_id = payload.get("session_id")
+    result = mcp_server.route_with_langgraph(query, lang, session_id)
     return {"response": result}
 
 
 @router.post("/voice")
-async def handle_voice_input(file: UploadFile = File(...), lang: str = "en"):
+async def handle_voice_input(file: UploadFile = File(...), lang: str = "en", session_id: str | None = None):
     audio_bytes = await file.read()
     if is_runpod_live(RUNPOD_URL):
         res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": audio_bytes})
         text = res.json().get("text", "")
     else:
         text = transcribe_audio(audio_bytes)
-    result = mcp_server.route_with_langgraph(text, lang)
+    result = mcp_server.route_with_langgraph(text, lang, session_id)
     return {"response": result}
 
 
 @router.post("/image")
-async def handle_image_input(file: UploadFile = File(...), lang: str = "en"):
+async def handle_image_input(file: UploadFile = File(...), lang: str = "en", session_id: str | None = None):
     image_bytes = await file.read()
     if is_runpod_live(RUNPOD_URL):
         res = requests.post(f"{RUNPOD_URL}/vision", files={"file": image_bytes})
         image_text = res.json().get("text", "")
     else:
         image_text = extract_image_text(image_bytes)
-    result = mcp_server.route_with_langgraph(image_text, lang)
+    result = mcp_server.route_with_langgraph(image_text, lang, session_id)
     return {"response": result}
 
 
@@ -49,6 +50,8 @@ async def handle_image_input(file: UploadFile = File(...), lang: str = "en"):
 async def handle_search_input(payload: dict):
     query = payload.get("query")
     lang = payload.get("lang", "en")
+    # search endpoint does not use session data but accept it for consistency
+    payload.get("session_id")
     result = search_agent.handle_query(query)
     translated = translate_agent.translate_response(result, lang)
     return {"response": translated}

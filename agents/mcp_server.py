@@ -12,24 +12,26 @@ settings = Settings()
 class InputState(TypedDict):
     input: str
     lang: str
+    session_id: str | None
 
 
 # ✅ LangGraph routing logic
-def route_with_langgraph(text: str, lang: str = "en"):
+def route_with_langgraph(text: str, lang: str = "en", session_id: str | None = None):
     graph = StateGraph(InputState)
 
     # --- Node 1: Classify and route query ---
     def classify_and_route(state: InputState):
         query = state.get("input", "")
+        session = state.get("session_id")
         lower = query.lower()
 
         if "image" in lower:
-            result = rag_agent.handle_text(query, namespace="image")
+            result = rag_agent.handle_text(query, namespace="image", session_id=session)
         elif any(word in lower for word in ["pdf", "document"]):
-            result = rag_agent.handle_text(query, namespace="pdf")
+            result = rag_agent.handle_text(query, namespace="pdf", session_id=session)
         else:
             result = search_agent.handle_query(query)
-        return {"input": result, "lang": state.get("lang")}
+        return {"input": result, "lang": state.get("lang"), "session_id": session}
 
     # --- Node 2: Translate response ---
     def translate_output(state: InputState):
@@ -49,4 +51,4 @@ def route_with_langgraph(text: str, lang: str = "en"):
     graph.set_entry_point("route")
     graph.set_finish_point("translate")
 
-    return graph.compile().invoke({"input": text, "lang": lang})
+    return graph.compile().invoke({"input": text, "lang": lang, "session_id": session_id})
