@@ -10,9 +10,12 @@ from vectorstore.faiss_store import (
 )
 from agents import search_agent
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
+from cachetools import TTLCache
 
 # In-memory session tracking for uploaded files
-session_store: dict[str, dict] = {}
+# Entries expire ``DEFAULT_SESSION_TTL`` seconds after creation.
+DEFAULT_SESSION_TTL = 3600  # 1 hour
+session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
 
 
 def _session_ns(base: str, session_id: str | None) -> str:

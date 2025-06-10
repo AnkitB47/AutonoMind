@@ -8,6 +8,7 @@ aiofiles
 httpx
 orjson
 requests
+cachetools
 
 # --- NumPy Compatibility ---
 numpy<2.0.0
