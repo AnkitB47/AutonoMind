@@ -10,6 +10,7 @@ from vectorstore.faiss_store import (
 )
 from agents import search_agent
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
+from vectorstore.clip_store import ingest_image as ingest_clip_image, search_images
 from cachetools import TTLCache
 
 # In-memory session tracking for uploaded files
@@ -59,21 +60,22 @@ async def process_file(file, session_id: str | None = None):
 
     elif suffix in ["jpg", "jpeg", "png"]:
         extracted = extract_image_text(path)
+        ns = _session_ns("image", session_id)
         if extracted and len(extracted.split()) > 5:
-            ns = _session_ns("image", session_id)
             ingest_text_to_faiss(extracted, namespace=ns)
+            ingest_clip_image(path, namespace=ns)
             if session_id:
                 session_store[session_id] = {"type": "image", "text": extracted}
             os.remove(path)
-            return "✅ Image description ingested into FAISS."
+            return "✅ Image description ingested into FAISS & CLIP."
         else:
             description = describe_image(path)
-            ns = _session_ns("image", session_id)
             ingest_text_to_faiss(description, namespace=ns)
+            ingest_clip_image(path, namespace=ns)
             if session_id:
                 session_store[session_id] = {"type": "image", "text": description}
             os.remove(path)
-            return "✅ Gemini description ingested into FAISS."
+            return "✅ Gemini description ingested into FAISS & CLIP."
 
     return "❌ Unsupported file format."
 
@@ -101,19 +103,34 @@ def handle_text(
     if "no faiss" in result_faiss.lower() and session_id:
         result_faiss = search_faiss(text, namespace=namespace)
 
+    result_clip = "No image match found"
+    if namespace == "image":
+        result_clip = search_images(text, namespace=_session_ns("image", session_id))
+
+    def _clean(text: str) -> str:
+        return text.replace("<pad>", "").replace("<eos>", "").replace("<EOS>", "").strip()
+
+    result_pc = _clean(result_pc)
+    result_faiss = _clean(result_faiss)
+    result_clip = _clean(result_clip)
+
     pc_no_match = "no match" in result_pc.lower()
     faiss_no_match = "no faiss" in result_faiss.lower()
+    clip_no_match = "no image" in result_clip.lower()
 
-    if pc_no_match and faiss_no_match:
+    if pc_no_match and faiss_no_match and (namespace != "image" or clip_no_match):
         if namespace:
             return "No match found"
         # Full multi‐engine fallback: ArXiv → Semantic Scholar → Web
         return search_agent.handle_query(text)
 
-    return (
-        f"Pinecone:\n{result_pc or 'No match found'}"
-        f"\n\nFAISS:\n{result_faiss or 'No match found'}"
-    )
+    parts = [
+        f"Pinecone:\n{result_pc or 'No match found'}",
+        f"FAISS:\n{result_faiss or 'No match found'}",
+    ]
+    if namespace == "image":
+        parts.append(f"CLIP:\n{result_clip or 'No match found'}")
+    return "\n\n".join(parts)
 
 
 def query_with_confidence(text: str, session_id: str | None = None):
@@ -134,6 +151,10 @@ def query_with_confidence(text: str, session_id: str | None = None):
             ans, conf = search_faiss_with_score(text, namespace=ns)
         if conf > best_conf:
             best_answer, best_conf = ans, conf
+
+    clip_ans = search_images(text, namespace=_session_ns("image", session_id))
+    if "no image" not in clip_ans.lower() and best_conf < 0.5:
+        best_answer, best_conf = clip_ans, 0.5
 
     if not best_answer:
         return "No match found", 0.0

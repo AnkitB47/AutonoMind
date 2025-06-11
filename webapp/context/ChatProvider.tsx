@@ -4,7 +4,6 @@ import {
   sendTextMessage,
   uploadFile as uploadFileSvc,
   sendVoice as sendVoiceSvc,
-  sendImageFile,
   sendSearchQuery,
 } from '../services/chatService';
 
@@ -88,10 +87,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const isImage = file.type.startsWith('image/');
-      const res = isImage
-        ? await sendImageFile(file, language, { sessionId })
-        : await uploadFileSvc(file, language, { sessionId });
+      const res = await uploadFileSvc(file, language, { sessionId });
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
