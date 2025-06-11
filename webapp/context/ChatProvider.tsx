@@ -23,6 +23,7 @@ interface ChatCtx {
   language: string;
   setLanguage: (l: string) => void;
   setMode: (m: Mode) => void;
+  sessionId: string;
   sendMessage: (text: string) => void;
   sendSearch: (text: string) => void;
   sendVoice: (blob: Blob) => void;
@@ -38,13 +39,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('en');
+  const [sessionId] = useState(() => crypto.randomUUID());
 
     const sendMessage = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', content: text }]);
     setLoading(true);
     setError(null);
     try {
-      const res = await sendTextMessage(text, language);
+      const res = await sendTextMessage(text, language, { sessionId });
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -58,7 +60,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await sendSearchQuery(text, language);
+      const res = await sendSearchQuery(text, language, { sessionId });
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -72,7 +74,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await sendVoiceSvc(blob, language);
+      const res = await sendVoiceSvc(blob, language, { sessionId });
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -88,8 +90,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       const isImage = file.type.startsWith('image/');
       const res = isImage
-        ? await sendImageFile(file, language)
-        : await uploadFileSvc(file, language);
+        ? await sendImageFile(file, language, { sessionId })
+        : await uploadFileSvc(file, language, { sessionId });
       setMessages((m) => [...m, { role: 'bot', content: res }]);
     } catch (err) {
       setError((err as Error).message);
@@ -110,6 +112,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         language,
         setLanguage,
         setMode,
+        sessionId,
         sendMessage,
         sendSearch,
         sendVoice,

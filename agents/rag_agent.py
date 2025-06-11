@@ -105,6 +105,8 @@ def handle_text(
     faiss_no_match = "no faiss" in result_faiss.lower()
 
     if pc_no_match and faiss_no_match:
+        if namespace:
+            return "No match found"
         # Full multi‐engine fallback: ArXiv → Semantic Scholar → Web
         return search_agent.handle_query(text)
 
