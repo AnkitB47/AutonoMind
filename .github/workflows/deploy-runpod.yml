@@ -51,7 +51,7 @@ jobs:
           GHCR_IMAGE="ghcr.io/${{ secrets.GHCRL_USER }}/autonomind-gpu:latest"
           echo "🚀 Creating secure pod: $UNIQUE_POD_NAME"
 
-          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, supportPublicIp: false, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"$GHCR_IMAGE\\\", ports: \\\"8000/http,8080/http,3000/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ { key: \\\"OPENAI_API_KEY\\\", value: \\\"${{ secrets.OPENAI_API_KEY }}\\\" }, { key: \\\"LANGCHAIN_API_KEY\\\", value: \\\"${{ secrets.LANGCHAIN_API_KEY }}\\\" }, { key: \\\"PINECONE_API_KEY\\\", value: \\\"${{ secrets.PINECONE_API_KEY }}\\\" }, { key: \\\"PINECONE_INDEX_NAME\\\", value: \\\"${{ secrets.PINECONE_INDEX_NAME }}\\\" }, { key: \\\"PINECONE_INDEX_HOST\\\", value: \\\"${{ secrets.PINECONE_INDEX_HOST }}\\\" }, { key: \\\"PINECONE_REGION\\\", value: \\\"${{ secrets.PINECONE_REGION }}\\\" }, { key: \\\"LANGCHAIN_PROJECT\\\", value: \\\"${{ secrets.LANGCHAIN_PROJECT }}\\\" }, { key: \\\"SERPAPI_API_KEY\\\", value: \\\"${{ secrets.SERPAPI_API_KEY }}\\\" }, { key: \\\"GEMINI_API_KEY\\\", value: \\\"${{ secrets.GEMINI_API_KEY }}\\\" }, { key: \\\"HF_TOKEN\\\", value: \\\"${{ secrets.HF_TOKEN }}\\\" }, { key: \\\"GROQ_API_KEY\\\", value: \\\"${{ secrets.GROQ_API_KEY }}\\\" }, { key: \\\"LANGFUSE_PUBLIC_KEY\\\", value: \\\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\\" }, { key: \\\"LANGFUSE_SECRET_KEY\\\", value: \\\"${{ secrets.LANGFUSE_SECRET_KEY }}\\\" }, { key: \\\"LANGFUSE_HOST\\\", value: \\\"${{ secrets.LANGFUSE_HOST }}\\\" }, { key: \\\"FAISS_INDEX_PATH\\\", value: \\\"${{ secrets.FAISS_INDEX_PATH }}\\\" }, { key: \\\"USE_GPU\\\", value: \\\"${{ secrets.USE_GPU }}\\\" }, { key: \\\"MODEL_PATH\\\", value: \\\"${{ secrets.MODEL_PATH }}\\\" } ] }) { id } }\"}"          
+          GRAPHQL_QUERY="{\"query\":\"mutation PodDeploy { podFindAndDeployOnDemand(input: { cloudType: SECURE, supportPublicIp: false, gpuCount: 1, volumeInGb: 1, containerDiskInGb: 20, minVcpuCount: 8, minMemoryInGb: 31, gpuTypeId: \\\"NVIDIA RTX A4500\\\", name: \\\"$UNIQUE_POD_NAME\\\", imageName: \\\"$GHCR_IMAGE\\\", ports: \\\"8000/http,3000/http\\\", volumeMountPath: \\\"/runpod\\\", env: [ { key: \\\"OPENAI_API_KEY\\\", value: \\\"${{ secrets.OPENAI_API_KEY }}\\\" }, { key: \\\"LANGCHAIN_API_KEY\\\", value: \\\"${{ secrets.LANGCHAIN_API_KEY }}\\\" }, { key: \\\"PINECONE_API_KEY\\\", value: \\\"${{ secrets.PINECONE_API_KEY }}\\\" }, { key: \\\"PINECONE_INDEX_NAME\\\", value: \\\"${{ secrets.PINECONE_INDEX_NAME }}\\\" }, { key: \\\"PINECONE_INDEX_HOST\\\", value: \\\"${{ secrets.PINECONE_INDEX_HOST }}\\\" }, { key: \\\"PINECONE_REGION\\\", value: \\\"${{ secrets.PINECONE_REGION }}\\\" }, { key: \\\"LANGCHAIN_PROJECT\\\", value: \\\"${{ secrets.LANGCHAIN_PROJECT }}\\\" }, { key: \\\"SERPAPI_API_KEY\\\", value: \\\"${{ secrets.SERPAPI_API_KEY }}\\\" }, { key: \\\"GEMINI_API_KEY\\\", value: \\\"${{ secrets.GEMINI_API_KEY }}\\\" }, { key: \\\"HF_TOKEN\\\", value: \\\"${{ secrets.HF_TOKEN }}\\\" }, { key: \\\"GROQ_API_KEY\\\", value: \\\"${{ secrets.GROQ_API_KEY }}\\\" }, { key: \\\"LANGFUSE_PUBLIC_KEY\\\", value: \\\"${{ secrets.LANGFUSE_PUBLIC_KEY }}\\\" }, { key: \\\"LANGFUSE_SECRET_KEY\\\", value: \\\"${{ secrets.LANGFUSE_SECRET_KEY }}\\\" }, { key: \\\"LANGFUSE_HOST\\\", value: \\\"${{ secrets.LANGFUSE_HOST }}\\\" }, { key: \\\"FAISS_INDEX_PATH\\\", value: \\\"${{ secrets.FAISS_INDEX_PATH }}\\\" }, { key: \\\"USE_GPU\\\", value: \\\"${{ secrets.USE_GPU }}\\\" }, { key: \\\"MODEL_PATH\\\", value: \\\"${{ secrets.MODEL_PATH }}\\\" } ] }) { id } }\"}"           
           
           echo "✅ Sending GraphQL mutation:"
           echo "$GRAPHQL_QUERY"
@@ -104,33 +104,27 @@ jobs:
             STATUS=$(echo "$response" | jq -r '.data.pod.desiredStatus')
             echo "🔄 Status check $i: $STATUS"
 
-            # Extract secure Cloud public ports for 8000 (FastAPI), 8080 (Streamlit) and 3000 (Frontend)
+            # Extract secure Cloud public ports for 8000 (FastAPI) and 3000 (Frontend)
             FASTAPI_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.privatePort == 8000)' || true)
-            STREAMLIT_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.privatePort == 8080)' || true)
             FRONTEND_INFO=$(echo "$response" | jq -c '.data.pod.runtime.ports[] | select(.privatePort == 3000)' || true)
 
             FASTAPI_PUBLIC=$(echo "$FASTAPI_INFO" | jq -r '.publicPort // empty')
-            STREAMLIT_PUBLIC=$(echo "$STREAMLIT_INFO" | jq -r '.publicPort // empty')
             FRONTEND_PUBLIC=$(echo "$FRONTEND_INFO" | jq -r '.publicPort // empty')
 
-            if [ -n "$FASTAPI_PUBLIC" ] && [ -n "$STREAMLIT_PUBLIC" ] && [ -n "$FRONTEND_PUBLIC" ] && [ "$STATUS" = "RUNNING" ]; then
+            if [ -n "$FASTAPI_PUBLIC" ] && [ -n "$FRONTEND_PUBLIC" ] && [ "$STATUS" = "RUNNING" ]; then
               FASTAPI_URL="https://$POD_ID-$FASTAPI_PUBLIC.proxy.runpod.net"
-              STREAMLIT_URL="https://$POD_ID-$STREAMLIT_PUBLIC.proxy.runpod.net"
               FRONTEND_URL="https://$POD_ID-$FRONTEND_PUBLIC.proxy.runpod.net"
               echo "✅ FastAPI is live at: $FASTAPI_URL"
-              echo "✅ Streamlit is live at: $STREAMLIT_URL"
               echo "✅ Frontend is live at: $FRONTEND_URL"
               echo "fastapi_url=$FASTAPI_URL" >> $GITHUB_OUTPUT
-              echo "streamlit_url=$STREAMLIT_URL" >> $GITHUB_OUTPUT
               echo "frontend_url=$FRONTEND_URL" >> $GITHUB_OUTPUT
               echo "FASTAPI_URL=$FASTAPI_URL" >> $GITHUB_ENV
-              echo "STREAMLIT_URL=$STREAMLIT_URL" >> $GITHUB_ENV
               echo "FRONTEND_URL=$FRONTEND_URL" >> $GITHUB_ENV
              break
             fi
           done
 
-          if [[ -z "$FASTAPI_URL" || -z "$STREAMLIT_URL" || -z "$FRONTEND_URL" ]]; then
+          if [[ -z "$FASTAPI_URL" || -z "$FRONTEND_URL" ]]; then
             echo "❌ One or both services failed to start within timeout"
             echo "ℹ️ Last response: $response"
             exit 1
@@ -141,7 +135,6 @@ jobs:
         run: |
           set -euo pipefail
           gh secret set FASTAPI_URL --body "${{ steps.poll_status.outputs.fastapi_url }}"
-          gh secret set STREAMLIT_URL --body "${{ steps.poll_status.outputs.streamlit_url }}"
           gh secret set FRONTEND_URL --body "${{ steps.poll_status.outputs.frontend_url }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GHCR_TOKEN }}
@@ -152,5 +145,4 @@ jobs:
           set -euo pipefail
           echo "🚀 Your app is live!"
           echo "✅ FastAPI URL: ${{ steps.poll_status.outputs.fastapi_url }}"
-          echo "✅ Streamlit URL: ${{ steps.poll_status.outputs.streamlit_url }}"
           echo "✅ Frontend URL: ${{ steps.poll_status.outputs.frontend_url }}"

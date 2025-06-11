@@ -45,13 +45,6 @@ async def transcribe(file: UploadFile = File(...)) -> Dict[str, str]:
     return {"text": text}
 
 
-@router.post("/search/web")
-async def search_web(payload: SearchPayload) -> Dict[str, List[Dict[str, str]]]:
-    summary = search_agent.search_web(payload.query)
-    results = [{"title": line.split("\n")[0], "snippet": line, "url": ""} for line in summary.split("\n\n")]
-    return {"results": results}
-
-
 @router.post("/search/image")
 async def search_image(payload: SearchPayload) -> Dict[str, List[Dict[str, str]]]:
     summary = search_agent.search_web(payload.query + " images")

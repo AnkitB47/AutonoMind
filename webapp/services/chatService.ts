@@ -32,8 +32,12 @@ export async function sendVoiceFile(file: Blob, lang: string, opts: SessionOpts 
 
 export async function sendSearchQuery(query: string, lang: string, opts: SessionOpts = {}) {
   const { sessionId } = opts;
-  const { data } = await fastApi.post('/search/web', { query, session_id: sessionId });
-  return JSON.stringify(data.results) || '...';
+  const { data } = await fastApi.post('/input/search', {
+    query,
+    lang,
+    session_id: sessionId,
+  });
+  return data.response || '...';
 }
 
 export async function sendImageFile(file: File, lang: string, opts: SessionOpts = {}) {
