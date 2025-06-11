@@ -34,7 +34,7 @@ async def process_file(file, session_id: str | None = None):
     name = getattr(file, "filename", None) or getattr(file, "name", "unknown.unknown")
     suffix = name.split(".")[-1].lower()
 
-    # ✅ Handle Streamlit (sync) or FastAPI (async)
+    # Handle both sync (file-like) and async uploads
     read_method = file.read
     data = (
         await read_method()

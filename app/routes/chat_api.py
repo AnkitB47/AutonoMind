@@ -27,7 +27,7 @@ class SearchPayload(BaseModel):
 
 @router.post("/rag/query")
 async def rag_query(payload: Question) -> Dict[str, float | str]:
-    answer, conf = rag_agent.query_with_confidence(payload.question, session_id=payload.session_id)
+    answer, conf, _ = rag_agent.query_with_confidence(payload.question, session_id=payload.session_id)
     return {"answer": answer, "confidence": conf}
 
 
@@ -66,8 +66,8 @@ class ChatRequest(BaseModel):
 
 
 def chat_logic(message: str, lang: str = "en", session_id: str | None = None):
-    answer, conf = rag_agent.query_with_confidence(message, session_id=session_id)
-    if conf < 0.6 or "no match" in answer.lower():
+    answer, conf, source = rag_agent.query_with_confidence(message, session_id=session_id)
+    if source not in ("pdf", "image") or conf < 0.6:
         # Fallback chain
         for fn in (
             search_agent.search_arxiv,
