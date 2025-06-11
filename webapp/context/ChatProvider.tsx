@@ -1,10 +1,11 @@
 'use client';
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useState, ReactNode } from 'react';
 import {
   sendTextMessage,
   uploadFile as uploadFileSvc,
-  sendVoice as sendVoiceSvc,
+  sendVoiceFile,
   sendSearchQuery,
+  sendImageFile,
 } from '../services/chatService';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
@@ -23,10 +24,7 @@ interface ChatCtx {
   setLanguage: (l: string) => void;
   setMode: (m: Mode) => void;
   sessionId: string;
-  sendMessage: (text: string) => void;
-  sendSearch: (text: string) => void;
-  sendVoice: (blob: Blob) => void;
-  uploadFile: (file: File) => void;
+  sendUserInput: (value: string | File | Blob) => void;
   clearMessages: () => void;
 }
 
@@ -40,62 +38,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState('en');
   const [sessionId] = useState(() => crypto.randomUUID());
 
-    const sendMessage = async (text: string) => {
-    setMessages((m) => [...m, { role: 'user', content: text }]);
+  const sendUserInput = async (input: string | File | Blob) => {
+    setMessages((m) => [
+      ...m,
+      { role: 'user', content: typeof input === 'string' ? input : '[file]' },
+    ]);
     setLoading(true);
     setError(null);
     try {
-      const res = await sendTextMessage(text, language, { sessionId });
-      setMessages((m) => [...m, { role: 'bot', content: res }]);
+      let reply: string;
+      switch (mode) {
+        case 'text':
+          reply = await sendTextMessage(input as string, language, { sessionId });
+          break;
+        case 'search':
+          reply = await sendSearchQuery(input as string, language, { sessionId });
+          break;
+        case 'voice':
+          reply = await sendVoiceFile(input as Blob, language);
+          break;
+        case 'image':
+          reply = await sendImageFile(input as File, language, { sessionId });
+          break;
+        default:
+          reply = 'Unsupported mode';
+      }
+      setMessages((m) => [...m, { role: 'bot', content: reply }]);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   };
-
-  const sendSearch = async (text: string) => {
-    setMessages((m) => [...m, { role: 'user', content: text }]);
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await sendSearchQuery(text, language, { sessionId });
-      setMessages((m) => [...m, { role: 'bot', content: res }]);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sendVoice = async (blob: Blob) => {
-    setMessages((m) => [...m, { role: 'user', content: '[voice]' }]);
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await sendVoiceSvc(blob, language, { sessionId });
-      setMessages((m) => [...m, { role: 'bot', content: res }]);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const uploadFile = async (file: File) => {
-    setMessages((m) => [...m, { role: 'user', content: file.name }]);
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await uploadFileSvc(file, language, { sessionId });
-      setMessages((m) => [...m, { role: 'bot', content: res }]);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const clearMessages = () => setMessages([]);
 
   return (
@@ -109,10 +83,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setLanguage,
         setMode,
         sessionId,
-        sendMessage,
-        sendSearch,
-        sendVoice,
-        uploadFile,
+        sendUserInput,
         clearMessages,
       }}
     >

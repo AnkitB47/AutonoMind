@@ -6,28 +6,33 @@ import { Button } from '../Shared/Button';
 import useSpeechRecognition from '../../hooks/useSpeechRecognition';
 
 export default function ChatInput() {
+  const { mode, sendUserInput, setMode } = useContext(ChatContext);
+  const [text, setText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const { start, stop, isRecording } = useSpeechRecognition();
+
+export default function ChatInput() {
   const { mode, sendMessage, sendVoice, sendSearch, setMode, uploadFile } = useContext(ChatContext);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const { start, stop, isRecording } = useSpeechRecognition();
 
   const handleSend = () => {
-    if (mode === 'text' && text.trim()) {
-      sendMessage(text);
-      setText('');
-    } else if (mode === 'search' && text.trim()) {
-      sendSearch(text);
-      setText('');
-    } else if (mode === 'image' && file) {
-      uploadFile(file);
+    if (mode === 'image' && file) {
+      sendUserInput(file);
       setFile(null);
+      return;
+    }
+    if (text.trim()) {
+      sendUserInput(text);
+      setText('');
     }
   };
 
   const handleRecord = async () => {
     if (isRecording) {
       const audio = await stop();
-      if (audio) sendVoice(audio);
+      if (audio) sendUserInput(audio);
     } else {
       start();
     }
