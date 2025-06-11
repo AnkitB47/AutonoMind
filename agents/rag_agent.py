@@ -134,32 +134,32 @@ def handle_text(
 
 
 def query_with_confidence(text: str, session_id: str | None = None):
-    """Return best RAG answer and confidence across all namespaces."""
+    """Return best RAG answer, confidence and source namespace."""
     best_answer = None
     best_conf = 0.0
+    best_source = None
 
     pc_ns = _session_ns("pdf", session_id)
     pc_ans, pc_conf = search_pinecone_with_score(text, namespace=pc_ns)
     if pc_conf == 0.0 and session_id:
         pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
     if pc_conf > best_conf:
-        best_answer, best_conf = pc_ans, pc_conf
+        best_answer, best_conf, best_source = pc_ans, pc_conf, "pdf"
 
     for ns in ["pdf", "image", "memory"]:
         ans, conf = search_faiss_with_score(text, namespace=_session_ns(ns, session_id))
         if conf == 0.0 and session_id:
             ans, conf = search_faiss_with_score(text, namespace=ns)
         if conf > best_conf:
-            best_answer, best_conf = ans, conf
+            best_answer, best_conf, best_source = ans, conf, ns
 
     clip_ans = search_images(text, namespace=_session_ns("image", session_id))
     if "no image" not in clip_ans.lower() and best_conf < 0.5:
-        best_answer, best_conf = clip_ans, 0.5
+        best_answer, best_conf, best_source = clip_ans, 0.5, "image"
 
     if not best_answer:
-        return "No match found", 0.0
-
-    return best_answer, best_conf
+        return "No match found", 0.0, None
+    return best_answer, best_conf, best_source
 
 
 def save_memory(question: str, answer: str, session_id: str | None = None):

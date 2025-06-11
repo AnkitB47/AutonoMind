@@ -67,21 +67,45 @@ class ChatRequest(BaseModel):
 
 def chat_logic(message: str, lang: str = "en", session_id: str | None = None):
     answer, conf, source = rag_agent.query_with_confidence(message, session_id=session_id)
+
     if source not in ("pdf", "image") or conf < 0.6:
-        # Fallback chain
-        for fn in (
-            search_agent.search_arxiv,
-            search_agent.search_semantic_scholar,
-            search_agent.search_web,
-        ):
-            result = fn(message)
-            if result and "no" not in result.lower():
-                answer = result
-                break
+        # OCR fallback
+        try:
+            ocr_text = extract_image_text(message)
+        except Exception:
+            ocr_text = ""
+
+        if ocr_text and "error" not in ocr_text.lower():
+            new_ans, new_conf, _ = rag_agent.query_with_confidence(ocr_text, session_id=session_id)
+            if new_conf > conf:
+                answer, conf = new_ans, new_conf
+
+        if conf < 0.6:
+            # Speech transcription fallback
+            try:
+                transcribed = transcribe_audio(message if isinstance(message, (bytes, bytearray)) else message.encode())
+            except Exception:
+                transcribed = ""
+
+            if transcribed:
+                new_ans, new_conf, _ = rag_agent.query_with_confidence(transcribed, session_id=session_id)
+                if new_conf > conf:
+                    answer, conf = new_ans, new_conf
+
+        if conf < 0.6:
+            for fn in (
+                search_agent.search_arxiv,
+                search_agent.search_semantic_scholar,
+                search_agent.search_web,
+            ):
+                result = fn(message)
+                if result and "no" not in result.lower():
+                    answer = result
+                    break
+
     rag_agent.save_memory(message, answer, session_id=session_id)
     translated = translate_agent.translate_response(answer, lang)
     return translated, conf
-
 
 @router.post("/chat")
 async def chat_endpoint(payload: ChatRequest) -> Dict[str, float | str]:
