@@ -53,16 +53,10 @@ COPY --from=frontend-builder /build/webapp ./webapp
 RUN mkdir -p /data
 
 # 6) Expose ports for FastAPI (8000), Streamlit (8080), and Next.js (3000)
-EXPOSE 8000 8080 3000
+EXPOSE 8000 3000
 
 # 7) Launch FastAPI, Streamlit and the built Next.js frontend
 CMD bash -c "\
     uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000 & \
-    streamlit run app/main_streamlit.py \
-      --server.port=8080 \
-      --server.address=0.0.0.0 \
-      --server.enableCORS=false \
-      --server.enableXsrfProtection=false \
-      --server.headless=true & \
     cd webapp && npx next start --hostname 0.0.0.0 --port 3000\
 "

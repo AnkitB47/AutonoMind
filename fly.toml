@@ -6,20 +6,6 @@ app = "autonomind"
 [experimental]
   auto_rollback = true
 
-# ─────────── Streamlit ────────────
-[[services]]
-  internal_port = 8080
-  protocol      = "tcp"
-
-  # Expose HTTP on 80/443 → internal 8080
-  [[services.ports]]
-    port     = 80
-    handlers = ["http"]
-
-  [[services.ports]]
-    port     = 443
-    handlers = ["tls", "http"]
-
 # ─────────── FastAPI ──────────────
 [[services]]
   internal_port = 8000

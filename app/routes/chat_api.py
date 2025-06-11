@@ -3,7 +3,7 @@ from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Dict
 
-from agents import rag_agent, search_agent
+from agents import rag_agent, search_agent, translate_agent
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 
@@ -68,14 +68,29 @@ async def voice_assist(payload: TextPayload) -> Dict[str, str]:
 
 class ChatRequest(BaseModel):
     message: str
+    lang: str = "en"
     session_id: str | None = None
+
+
+def chat_logic(message: str, lang: str = "en", session_id: str | None = None):
+    answer, conf = rag_agent.query_with_confidence(message, session_id=session_id)
+    if conf < 0.6 or "no match" in answer.lower():
+        # Fallback chain
+        for fn in (
+            search_agent.search_arxiv,
+            search_agent.search_semantic_scholar,
+            search_agent.search_web,
+        ):
+            result = fn(message)
+            if result and "no" not in result.lower():
+                answer = result
+                break
+    rag_agent.save_memory(message, answer, session_id=session_id)
+    translated = translate_agent.translate_response(answer, lang)
+    return translated, conf
 
 
 @router.post("/chat")
 async def chat_endpoint(payload: ChatRequest) -> Dict[str, float | str]:
-    answer, conf = rag_agent.query_with_confidence(payload.message, session_id=payload.session_id)
-    if conf < 0.3 or "no match" in answer.lower():
-        answer = search_agent.handle_query(payload.message)
-
-    rag_agent.save_memory(payload.message, answer, session_id=payload.session_id)
-    return {"reply": answer, "confidence": conf}
+    reply, conf = chat_logic(payload.message, payload.lang, payload.session_id)
+    return {"reply": reply, "confidence": conf}

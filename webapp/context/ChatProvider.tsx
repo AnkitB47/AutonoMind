@@ -55,7 +55,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           reply = await sendSearchQuery(input as string, language, { sessionId });
           break;
         case 'voice':
-          reply = await sendVoiceFile(input as Blob, language);
+          reply = await sendVoiceFile(input as Blob, language, { sessionId });
           break;
         case 'image':
           reply = await sendImageFile(input as File, language, { sessionId });

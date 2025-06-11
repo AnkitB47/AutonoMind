@@ -11,12 +11,6 @@ export default function ChatInput() {
   const [file, setFile] = useState<File | null>(null);
   const { start, stop, isRecording } = useSpeechRecognition();
 
-export default function ChatInput() {
-  const { mode, sendMessage, sendVoice, sendSearch, setMode, uploadFile } = useContext(ChatContext);
-  const [text, setText] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const { start, stop, isRecording } = useSpeechRecognition();
-
   const handleSend = () => {
     if (mode === 'image' && file) {
       sendUserInput(file);

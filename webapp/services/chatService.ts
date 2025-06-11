@@ -6,8 +6,8 @@ interface SessionOpts {
 
 export async function sendTextMessage(text: string, lang: string, opts: SessionOpts = {}) {
   const { sessionId } = opts;
-  const { data } = await fastApi.post('/chat', { message: text, session_id: sessionId });
-  return data.reply || '...';
+  const { data } = await fastApi.post('/input/text', { query: text, lang, session_id: sessionId });
+  return data.response || '...';
 }
 
 export async function sendVoice(blob: Blob, lang: string, opts: SessionOpts = {}) {
@@ -20,10 +20,12 @@ export async function sendVoice(blob: Blob, lang: string, opts: SessionOpts = {}
   return chat.reply || '...';
 }
 
-export async function sendVoiceFile(file: Blob, lang: string) {
+export async function sendVoiceFile(file: Blob, lang: string, opts: SessionOpts = {}) {
+  const { sessionId } = opts;
   const form = new FormData();
   form.append('file', file);
   form.append('lang', lang);
+  if (sessionId) form.append('session_id', sessionId);
   const { data } = await fastApi.post('/input/voice', form);
   return data.response || '...';
 }
@@ -38,8 +40,10 @@ export async function sendImageFile(file: File, lang: string, opts: SessionOpts 
   const { sessionId } = opts;
   const form = new FormData();
   form.append('file', file);
-  const { data } = await fastApi.post('/ocr', form);
-  return data.text || 'uploaded';
+  form.append('lang', lang);
+  if (sessionId) form.append('session_id', sessionId);
+  const { data } = await fastApi.post('/input/image', form);
+  return data.response || 'uploaded';
 }
 
 export async function uploadPdfFile(file: File, lang: string, opts: SessionOpts = {}) {
