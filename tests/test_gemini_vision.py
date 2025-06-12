@@ -1,13 +1,15 @@
 import os
+import sys
 from io import BytesIO
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from PIL import Image
+
+sys.modules.setdefault("google", MagicMock())
+sys.modules.setdefault("google.generativeai", MagicMock())
 
 os.environ["ENV"] = "dev"
 os.environ["GEMINI_API_KEY"] = "dummy"
-
-import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.gemini_vision import extract_image_text
 
