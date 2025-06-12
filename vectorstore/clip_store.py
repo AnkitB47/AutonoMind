@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 from typing import List, Tuple
+from transformers import CLIPProcessor, CLIPModel
 
 # Lazy imports to avoid heavy dependencies unless needed
 _processor = None
@@ -17,9 +18,12 @@ META_PATH = CLIP_INDEX_PATH + ".json"
 def _load_model():
     global _processor, _model
     if _model is None:
-        from transformers import CLIPProcessor, CLIPModel
         _processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-        _model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        # Use the safer `safetensors` weights to avoid the torch.load vulnerability
+        # check present in older PyTorch versions.
+        _model = CLIPModel.from_pretrained(
+            "openai/clip-vit-base-patch32", use_safetensors=True
+        )
     return _processor, _model
 
 
@@ -63,6 +67,7 @@ def ingest_image(path: str, namespace: str = "image"):
     inputs = processor(images=image, return_tensors="pt")
     with torch.no_grad():
         emb = model.get_image_features(**inputs)
+        emb = torch.nn.functional.normalize(emb, p=2, dim=-1)
     vec = emb[0].cpu().numpy().astype("float32")
     _index.add(np.expand_dims(vec, 0))
     _meta.append({"source": namespace, "path": path})
@@ -79,6 +84,7 @@ def search_images(query: str, namespace: str = "image", k: int = 1) -> str:
     inputs = processor(text=[query], return_tensors="pt")
     with torch.no_grad():
         text_emb = model.get_text_features(**inputs)
+        text_emb = torch.nn.functional.normalize(text_emb, p=2, dim=-1)
     qvec = text_emb[0].cpu().numpy().astype("float32")
     import numpy as np
     D, I = _index.search(np.expand_dims(qvec, 0), min(k, _index.ntotal))

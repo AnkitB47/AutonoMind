@@ -29,6 +29,7 @@ tiktoken
 faiss-gpu==1.7.2
 sentence-transformers
 transformers>=4.40.0
+safetensors
 
 # --- Multimodal AI ---
 openai-whisper
