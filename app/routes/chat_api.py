@@ -1,5 +1,5 @@
 # --- app/routes/chat_api.py ---
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Dict
 
@@ -65,49 +65,53 @@ class ChatRequest(BaseModel):
     session_id: str | None = None
 
 
-def chat_logic(message: str, lang: str = "en", session_id: str | None = None):
-    answer, conf, source = rag_agent.query_with_confidence(message, session_id=session_id)
+def chat_logic(text: str, lang: str = "en", session_id: str | None = None):
+    ans, conf, source = rag_agent.query_pdf_image(text, session_id=session_id)
 
     if source not in ("pdf", "image") or conf < 0.6:
-        # OCR fallback
-        try:
-            ocr_text = extract_image_text(message)
-        except Exception:
-            ocr_text = ""
+        for fn in (
+            search_agent.search_arxiv,
+            search_agent.search_semantic_scholar,
+            search_agent.search_web,
+        ):
+            result = fn(text)
+            if result and "no" not in result.lower():
+                ans = result
+                break
 
-        if ocr_text and "error" not in ocr_text.lower():
-            new_ans, new_conf, _ = rag_agent.query_with_confidence(ocr_text, session_id=session_id)
-            if new_conf > conf:
-                answer, conf = new_ans, new_conf
-
-        if conf < 0.6:
-            # Speech transcription fallback
-            try:
-                transcribed = transcribe_audio(message if isinstance(message, (bytes, bytearray)) else message.encode())
-            except Exception:
-                transcribed = ""
-
-            if transcribed:
-                new_ans, new_conf, _ = rag_agent.query_with_confidence(transcribed, session_id=session_id)
-                if new_conf > conf:
-                    answer, conf = new_ans, new_conf
-
-        if conf < 0.6:
-            for fn in (
-                search_agent.search_arxiv,
-                search_agent.search_semantic_scholar,
-                search_agent.search_web,
-            ):
-                result = fn(message)
-                if result and "no" not in result.lower():
-                    answer = result
-                    break
-
-    rag_agent.save_memory(message, answer, session_id=session_id)
-    translated = translate_agent.translate_response(answer, lang)
+    rag_agent.save_memory(text, ans, session_id=session_id)
+    translated = translate_agent.translate_response(ans, lang)
     return translated, conf
 
+SUPPORTED_IMAGES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+SUPPORTED_AUDIO = {"audio/wav", "audio/webm", "audio/mpeg", "audio/x-wav"}
+
+
 @router.post("/chat")
-async def chat_endpoint(payload: ChatRequest) -> Dict[str, float | str]:
-    reply, conf = chat_logic(payload.message, payload.lang, payload.session_id)
+async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) -> Dict[str, float | str]:
+    if file is not None:
+        content = await file.read()
+        if file.content_type in SUPPORTED_IMAGES:
+            text = extract_image_text(content)
+        elif file.content_type in SUPPORTED_AUDIO:
+            text = transcribe_audio(content)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type")
+        lang = "en"
+        session_id = None
+        try:
+            form = await request.form()
+            lang = form.get("lang", "en")
+            session_id = form.get("session_id")
+        except Exception:
+            pass
+    else:
+        data = await request.json()
+        text = data.get("message")
+        if not text:
+            raise HTTPException(status_code=400, detail="message required")
+        lang = data.get("lang", "en")
+        session_id = data.get("session_id")
+
+    reply, conf = chat_logic(text, lang, session_id)
     return {"reply": reply, "confidence": conf}

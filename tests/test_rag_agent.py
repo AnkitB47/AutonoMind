@@ -1,7 +1,11 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+
+# Stub heavy deps
+sys.modules.setdefault("transformers", MagicMock())
+sys.modules.setdefault("whisper", MagicMock())
 
 # ensure modules can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

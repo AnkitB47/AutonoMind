@@ -12,11 +12,13 @@ from agents import search_agent
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from vectorstore.clip_store import ingest_image as ingest_clip_image, search_images
 from cachetools import TTLCache
+from collections import defaultdict
 
 # In-memory session tracking for uploaded files
 # Entries expire ``DEFAULT_SESSION_TTL`` seconds after creation.
 DEFAULT_SESSION_TTL = 3600  # 1 hour
 session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
+memory_cache: dict[str, list[str]] = defaultdict(list)
 
 
 def _session_ns(base: str, session_id: str | None) -> str:
@@ -133,6 +135,39 @@ def handle_text(
     return "\n\n".join(parts)
 
 
+def query_pdf_image(text: str, session_id: str | None = None):
+    """Search PDF and image stores with session memory context."""
+    mem = load_memory(session_id)
+    if mem:
+        text = "\n".join(mem) + "\n" + text
+
+    best_answer = None
+    best_conf = 0.0
+    best_source = None
+
+    pc_ns = _session_ns("pdf", session_id)
+    pc_ans, pc_conf = search_pinecone_with_score(text, namespace=pc_ns)
+    if pc_conf == 0.0 and session_id:
+        pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
+    if pc_conf > best_conf:
+        best_answer, best_conf, best_source = pc_ans, pc_conf, "pdf"
+
+    for ns in ["pdf", "image"]:
+        ans, conf = search_faiss_with_score(text, namespace=_session_ns(ns, session_id))
+        if conf == 0.0 and session_id:
+            ans, conf = search_faiss_with_score(text, namespace=ns)
+        if conf > best_conf:
+            best_answer, best_conf, best_source = ans, conf, ns
+
+    clip_ans = search_images(text, namespace=_session_ns("image", session_id))
+    if "no image" not in clip_ans.lower() and best_conf < 0.5:
+        best_answer, best_conf, best_source = clip_ans, 0.5, "image"
+
+    if not best_answer:
+        return "No match found", 0.0, None
+    return best_answer, best_conf, best_source
+
+
 def query_with_confidence(text: str, session_id: str | None = None):
     """Return best RAG answer, confidence and source namespace."""
     best_answer = None
@@ -161,6 +196,34 @@ def query_with_confidence(text: str, session_id: str | None = None):
         return "No match found", 0.0, None
     return best_answer, best_conf, best_source
 
+def query_pdf_image(text: str, session_id: str | None = None):
+    """Return best answer and confidence from PDF and image namespaces only."""
+    best_answer = None
+    best_conf = 0.0
+    best_source = None
+
+    pc_ns = _session_ns("pdf", session_id)
+    pc_ans, pc_conf = search_pinecone_with_score(text, namespace=pc_ns)
+    if pc_conf == 0.0 and session_id:
+        pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
+    if pc_conf > best_conf:
+        best_answer, best_conf, best_source = pc_ans, pc_conf, "pdf"
+
+    for ns in ["pdf", "image"]:
+        ans, conf = search_faiss_with_score(text, namespace=_session_ns(ns, session_id))
+        if conf == 0.0 and session_id:
+            ans, conf = search_faiss_with_score(text, namespace=ns)
+        if conf > best_conf:
+            best_answer, best_conf, best_source = ans, conf, ns
+
+    clip_ans = search_images(text, namespace=_session_ns("image", session_id))
+    if "no image" not in clip_ans.lower() and best_conf < 0.5:
+        best_answer, best_conf, best_source = clip_ans, 0.5, "image"
+
+    if not best_answer:
+        return "No match found", 0.0, None
+    return best_answer, best_conf, best_source
+
 
 def save_memory(question: str, answer: str, session_id: str | None = None):
     """Persist Q&A pair into a session-scoped FAISS memory namespace."""
@@ -168,3 +231,12 @@ def save_memory(question: str, answer: str, session_id: str | None = None):
         f"Q: {question}\nA: {answer}",
         namespace=_session_ns("memory", session_id),
     )
+    if session_id:
+        memory_cache[session_id].append(f"Q: {question}\nA: {answer}")
+
+
+def load_memory(session_id: str | None, limit: int = 5) -> list[str]:
+    """Return the last ``limit`` memory entries for ``session_id``."""
+    if not session_id:
+        return []
+    return memory_cache.get(session_id, [])[-limit:]

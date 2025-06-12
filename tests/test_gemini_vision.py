@@ -42,6 +42,12 @@ class TestExtractImageText(unittest.TestCase):
             mime = payload["contents"][0]["parts"][1]["inlineData"]["mimeType"]
             self.assertEqual(mime, "image/jpeg")
 
+    def test_bad_mime(self):
+        with patch("requests.post") as mock_post:
+            result = extract_image_text(b"notanimage")
+            self.assertIn("Unsupported image type", result)
+            mock_post.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

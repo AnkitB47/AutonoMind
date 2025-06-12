@@ -4,6 +4,23 @@ import shutil
 import importlib
 import tempfile
 import unittest
+from unittest.mock import MagicMock
+import types
+
+fake_embed_mod = types.ModuleType("langchain_community.embeddings")
+
+class FakeEmbeddings:
+    def __init__(self, size=5):
+        self.size = size
+
+    def embed_documents(self, docs):
+        return [[0.1]*self.size for _ in docs]
+
+    def embed_query(self, q):
+        return [0.1]*self.size
+
+fake_embed_mod.FakeEmbeddings = FakeEmbeddings
+sys.modules.setdefault("langchain_community.embeddings", fake_embed_mod)
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -28,6 +45,24 @@ class TestFaissIngest(unittest.TestCase):
         from langchain_community.embeddings import FakeEmbeddings
         fake = FakeEmbeddings(size=5)
         self.fe.embedding_model = fake
+
+        # Simple in-memory FAISS stub
+        self.store = {}
+
+        def ingest_text_to_faiss(text, namespace=None, **kwargs):
+            ns = namespace or "default"
+            self.store.setdefault(ns, []).append(text)
+
+        def search_faiss(query, namespace=None):
+            ns = namespace or "default"
+            for t in self.store.get(ns, []):
+                if query in t:
+                    return t
+            return "No FAISS match found"
+
+        self.fe.ingest_text_to_faiss = ingest_text_to_faiss
+        self.fs.search_faiss = search_faiss
+
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)

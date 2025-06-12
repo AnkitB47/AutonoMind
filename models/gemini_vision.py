@@ -9,6 +9,9 @@ import mimetypes
 from app.config import Settings
 import google.generativeai as genai
 
+# Allowed MIME types for OCR
+SUPPORTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+
 # Load environment settings
 settings = Settings()
 
@@ -38,6 +41,9 @@ def extract_image_text(data: bytes | str) -> str:
             mime_type = Image.MIME.get(img.format)
         except Exception:
             mime_type = "application/octet-stream"
+
+    if mime_type not in SUPPORTED_IMAGE_TYPES:
+        return "❌ Unsupported image type"
 
     encoded_image = base64.b64encode(image_bytes).decode("utf-8")
 
