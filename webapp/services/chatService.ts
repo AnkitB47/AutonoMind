@@ -4,51 +4,29 @@ interface SessionOpts {
   sessionId?: string;
 }
 
-export async function sendTextMessage(text: string, lang: string, opts: SessionOpts = {}) {
+export async function sendChat(
+  input: string | Blob | File,
+  mode: 'text' | 'voice' | 'image' | 'search',
+  lang: string,
+  opts: SessionOpts = {}
+) {
   const { sessionId } = opts;
-  const { data } = await fastApi.post('/input/text', { query: text, lang, session_id: sessionId });
-  return data.response || '...';
-}
-
-export async function sendVoice(blob: Blob, lang: string, opts: SessionOpts = {}) {
-  const { sessionId } = opts;
+  if (mode === 'text' || mode === 'search') {
+    const { data } = await fastApi.post('/chat', {
+      message: input,
+      lang,
+      session_id: sessionId
+    });
+    return data.reply || '...';
+  }
   const form = new FormData();
-  form.append('file', blob, 'audio.webm');
-  const { data } = await fastApi.post('/transcribe', form);
-  const text = data.text || '';
-  const { data: chat } = await fastApi.post('/chat', { message: text, session_id: sessionId });
-  return chat.reply || '...';
-}
-
-export async function sendVoiceFile(file: Blob, lang: string, opts: SessionOpts = {}) {
-  const { sessionId } = opts;
-  const form = new FormData();
-  form.append('file', file);
+  form.append('file', input);
   form.append('lang', lang);
   if (sessionId) form.append('session_id', sessionId);
-  const { data } = await fastApi.post('/input/voice', form);
-  return data.response || '...';
+  const { data } = await fastApi.post('/chat', form);
+  return data.reply || '...';
 }
 
-export async function sendSearchQuery(query: string, lang: string, opts: SessionOpts = {}) {
-  const { sessionId } = opts;
-  const { data } = await fastApi.post('/input/search', {
-    query,
-    lang,
-    session_id: sessionId,
-  });
-  return data.response || '...';
-}
-
-export async function sendImageFile(file: File, lang: string, opts: SessionOpts = {}) {
-  const { sessionId } = opts;
-  const form = new FormData();
-  form.append('file', file);
-  form.append('lang', lang);
-  if (sessionId) form.append('session_id', sessionId);
-  const { data } = await fastApi.post('/input/image', form);
-  return data.response || 'uploaded';
-}
 
 export async function uploadPdfFile(file: File, lang: string, opts: SessionOpts = {}) {
   const { sessionId } = opts;
@@ -59,6 +37,7 @@ export async function uploadPdfFile(file: File, lang: string, opts: SessionOpts 
   const { data } = await fastApi.post('/upload', form);
   return data.message || 'uploaded';
 }
+
 
 export async function uploadFile(file: File, lang: string, opts: SessionOpts = {}) {
   const { sessionId } = opts;

@@ -15,7 +15,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from agents import search_agent
 
 from models.gemini_vision import extract_image_text
-from vectorstore.clip_store import ingest_image as ingest_clip_image, search_images
+from agents.clip_faiss import ingest_image as ingest_clip_image, search_text as search_images
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from vectorstore.faiss_store import search_faiss, search_faiss_with_score
 from vectorstore.pinecone_store import (
@@ -98,9 +98,9 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
 
     # CLIP only if FAISS didn't yield anything meaningful
     if best_conf == 0.0:
-        clip_res = search_images(text, namespace=_session_ns("image", sid))
-        if "no image" not in clip_res.lower():
-            best_answer, best_conf, best_src = _clean(clip_res), 0.5, "image"
+        matches = search_images(text, namespace=_session_ns("image", sid))
+        if matches:
+            best_answer, best_conf, best_src = matches[0]["url"], matches[0]["score"], "image"
 
     if not best_answer:
         return "No match found", 0.0, None
@@ -139,7 +139,9 @@ def handle_text(text: str, namespace: str | None = None, session_id: str | None 
     faiss_result = search_faiss(text, namespace=_session_ns(namespace, session_id) if namespace else None)
     clip_result = "No image match found"
     if namespace == "image":
-        clip_result = search_images(text, namespace=_session_ns("image", session_id))
+        matches = search_images(text, namespace=_session_ns("image", session_id))
+        if matches:
+            clip_result = matches[0]["url"]
 
     pc_result = _clean(pc_result)
     faiss_result = _clean(faiss_result)

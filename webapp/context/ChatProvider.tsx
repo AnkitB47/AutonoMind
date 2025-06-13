@@ -1,12 +1,6 @@
 'use client';
 import { createContext, useState, ReactNode } from 'react';
-import {
-  sendTextMessage,
-  uploadFile as uploadFileSvc,
-  sendVoiceFile,
-  sendSearchQuery,
-  sendImageFile,
-} from '../services/chatService';
+import { sendChat, uploadFile as uploadFileSvc } from '../services/chatService';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
@@ -46,23 +40,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      let reply: string;
-      switch (mode) {
-        case 'text':
-          reply = await sendTextMessage(input as string, language, { sessionId });
-          break;
-        case 'search':
-          reply = await sendSearchQuery(input as string, language, { sessionId });
-          break;
-        case 'voice':
-          reply = await sendVoiceFile(input as Blob, language, { sessionId });
-          break;
-        case 'image':
-          reply = await sendImageFile(input as File, language, { sessionId });
-          break;
-        default:
-          reply = 'Unsupported mode';
-      }
+      const reply = await sendChat(input as any, mode, language, { sessionId });
       setMessages((m) => [...m, { role: 'bot', content: reply }]);
     } catch (err) {
       setError((err as Error).message);
