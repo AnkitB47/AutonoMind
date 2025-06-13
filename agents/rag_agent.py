@@ -1,79 +1,58 @@
 # --- agents/rag_agent.py ---
+"""RAG helpers with per-session storage."""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from uuid import uuid4
+import inspect
+import os
+import tempfile
+import time
+
+from cachetools import TTLCache
+from langchain_community.document_loaders import PyPDFLoader
+from agents import search_agent
+
+from models.gemini_vision import extract_image_text
+from vectorstore.clip_store import ingest_image as ingest_clip_image, search_images
+from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
+from vectorstore.faiss_store import search_faiss, search_faiss_with_score
 from vectorstore.pinecone_store import (
+    ingest_pdf_text_to_pinecone as ingest_pdf_to_pinecone,
     search_pinecone,
     search_pinecone_with_score,
-    ingest_pdf_text_to_pinecone as ingest_pdf_to_pinecone,
 )
-from vectorstore.faiss_store import (
-    search_faiss,
-    search_faiss_with_score,
-)
-from agents import search_agent
-from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
-from vectorstore.clip_store import ingest_image as ingest_clip_image, search_images
-from cachetools import TTLCache
-from collections import defaultdict, deque
 
+__all__ = [
+    "process_file",
+    "query_pdf_image",
+    "query_with_confidence",
+    "save_memory",
+    "load_memory",
+]
 
-class StableTTLCache(TTLCache):
-    """TTLCache that avoids evicting the most recent N keys."""
-
-    def __init__(self, maxsize, ttl, keep_last=5, **kwargs):
-        super().__init__(maxsize=maxsize, ttl=ttl, **kwargs)
-        self.recent = deque(maxlen=keep_last)
-
-    def __setitem__(self, key, value):
-        if key in self.recent:
-            self.recent.remove(key)
-        self.recent.append(key)
-        super().__setitem__(key, value)
-
-    def __getitem__(self, key):
-        if key in self.recent:
-            self.recent.remove(key)
-        self.recent.append(key)
-        return super().__getitem__(key)
-
-    def popitem(self):
-        key, val = super().popitem()
-        while key in self.recent and len(self) > 0:
-            key, val = super().popitem()
-        if key in self.recent:
-            self.recent.remove(key)
-        return key, val
-
-# In-memory session tracking for uploaded files
-# Entries expire ``DEFAULT_SESSION_TTL`` seconds after creation.
+# Session caches
 DEFAULT_SESSION_TTL = 3600  # 1 hour
-session_store: TTLCache[str, dict] = StableTTLCache(
-    maxsize=128, ttl=DEFAULT_SESSION_TTL, keep_last=5
-)
+session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
 memory_cache: dict[str, list[str]] = defaultdict(list)
 
 
-def _session_ns(base: str, session_id: str | None) -> str:
-    """Helper to build a namespace string scoped by ``session_id``."""
-    return f"{base}_{session_id}" if session_id else base
-
-from langchain_community.document_loaders import PyPDFLoader
-from models.gemini_vision import extract_image_text, describe_image
-import tempfile
-import inspect
-import os
+def _session_ns(base: str, sid: str | None) -> str:
+    return f"{base}_{sid}" if sid else base
 
 
-async def process_file(file, session_id: str | None = None):
-    name = getattr(file, "filename", None) or getattr(file, "name", "unknown.unknown")
+def _clean(text: str) -> str:
+    return text.replace("<pad>", "").replace("<eos>", "").replace("<EOS>", "").strip()
+
+
+async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
+    """Ingest a PDF or image and return a session id."""
+    sid = session_id or str(uuid4())
+    name = getattr(file, "filename", getattr(file, "name", "upload"))
     suffix = name.split(".")[-1].lower()
-
-    # Handle both sync (file-like) and async uploads
-    read_method = file.read
-    data = (
-        await read_method()
-        if inspect.iscoroutinefunction(read_method)
-        else read_method()
-    )
-
+    read = file.read
+    data = await read() if inspect.iscoroutinefunction(read) else read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
         tmp.write(data)
         path = tmp.name
@@ -81,192 +60,101 @@ async def process_file(file, session_id: str | None = None):
     if suffix == "pdf":
         loader = PyPDFLoader(path)
         docs = loader.load()
-        text = "\n".join(page.page_content for page in docs)
-        ns = _session_ns("pdf", session_id)
-        ingest_pdf_to_pinecone(text, namespace=ns)
-        ingest_text_to_faiss(text, namespace=ns)
-        if session_id:
-            session_store[session_id] = {"type": "pdf", "text": text}
+        text = "\n".join(p.page_content for p in docs)
+        ingest_pdf_to_pinecone(text, namespace=_session_ns("pdf", sid))
+        ingest_text_to_faiss(text, namespace=_session_ns("pdf", sid))
+        msg = "✅ PDF ingested"
+        meta = {"type": "pdf", "text": text, "timestamp": time.time()}
+    elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
+        text = extract_image_text(path)
+        ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
+        ingest_clip_image(path, namespace=_session_ns("image", sid))
+        msg = "✅ Image ingested"
+        meta = {"type": "image", "text": text, "timestamp": time.time()}
+    else:
         os.remove(path)
-        return "✅ PDF ingested into Pinecone & FAISS."
+        return "❌ Unsupported file format", sid
 
-    elif suffix in ["jpg", "jpeg", "png"]:
-        extracted = extract_image_text(path)
-        ns = _session_ns("image", session_id)
-        if extracted and len(extracted.split()) > 5:
-            ingest_text_to_faiss(extracted, namespace=ns)
-            ingest_clip_image(path, namespace=ns)
-            if session_id:
-                session_store[session_id] = {"type": "image", "text": extracted}
-            os.remove(path)
-            return "✅ Image description ingested into FAISS & CLIP."
-        else:
-            description = describe_image(path)
-            ingest_text_to_faiss(description, namespace=ns)
-            ingest_clip_image(path, namespace=ns)
-            if session_id:
-                session_store[session_id] = {"type": "image", "text": description}
-            os.remove(path)
-            return "✅ Gemini description ingested into FAISS & CLIP."
-
-    return "❌ Unsupported file format."
+    os.remove(path)
+    session_store[sid] = meta
+    return msg, sid
 
 
-def handle_text(
-    text: str,
-    namespace: str | None = None,
-    session_id: str | None = None,
-):
-    """Search uploaded content via FAISS/Pinecone.
-
-    The optional ``namespace`` argument limits FAISS results to a specific
-    namespace (e.g. ``"image"`` or ``"pdf"``). Pinecone is only queried when the
-    namespace is ``None`` or ``"pdf"`` since it currently stores PDF data only.
-    """
-
-    result_pc = "No match found"
-    if namespace in (None, "pdf"):
-        ns = _session_ns("pdf", session_id)
-        result_pc = search_pinecone(text, namespace=ns)
-        if "no match" in result_pc.lower() and session_id:
-            result_pc = search_pinecone(text, namespace="pdf")
-
-    result_faiss = search_faiss(text, namespace=_session_ns(namespace, session_id) if namespace else None)
-    if "no faiss" in result_faiss.lower() and session_id:
-        result_faiss = search_faiss(text, namespace=namespace)
-
-    result_clip = "No image match found"
-    if namespace == "image":
-        result_clip = search_images(text, namespace=_session_ns("image", session_id))
-
-    def _clean(text: str) -> str:
-        return text.replace("<pad>", "").replace("<eos>", "").replace("<EOS>", "").strip()
-
-    result_pc = _clean(result_pc)
-    result_faiss = _clean(result_faiss)
-    result_clip = _clean(result_clip)
-
-    pc_no_match = "no match" in result_pc.lower()
-    faiss_no_match = "no faiss" in result_faiss.lower()
-    clip_no_match = "no image" in result_clip.lower()
-
-    if pc_no_match and faiss_no_match and (namespace != "image" or clip_no_match):
-        if namespace:
-            return "No match found"
-        # Full multi‐engine fallback: ArXiv → Semantic Scholar → Web
-        return search_agent.handle_query(text)
-
-    parts = [
-        f"Pinecone:\n{result_pc or 'No match found'}",
-        f"FAISS:\n{result_faiss or 'No match found'}",
-    ]
-    if namespace == "image":
-        parts.append(f"CLIP:\n{result_clip or 'No match found'}")
-    return "\n\n".join(parts)
-
-
-def query_pdf_image(text: str, session_id: str | None = None):
-    """Search PDF and image stores with session memory context."""
-    mem = load_memory(session_id)
-    if mem:
-        text = "\n".join(mem) + "\n" + text
-
-    best_answer = None
+def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, float, str | None]:
+    best_answer = ""
     best_conf = 0.0
-    best_source = None
+    best_src: str | None = None
 
-    pc_ns = _session_ns("pdf", session_id)
-    pc_ans, pc_conf = search_pinecone_with_score(text, namespace=pc_ns)
-    if pc_conf == 0.0 and session_id:
-        pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
-    if pc_conf > best_conf:
-        best_answer, best_conf, best_source = pc_ans, pc_conf, "pdf"
+    # Pinecone PDF search
+    ans, conf = search_pinecone_with_score(text, namespace=_session_ns("pdf", sid))
+    if conf > best_conf:
+        best_answer, best_conf, best_src = _clean(ans or ""), conf, "pdf"
 
-    for ns in ["pdf", "image"]:
-        ans, conf = search_faiss_with_score(text, namespace=_session_ns(ns, session_id))
-        if conf == 0.0 and session_id:
-            ans, conf = search_faiss_with_score(text, namespace=ns)
-        if conf > best_conf:
-            best_answer, best_conf, best_source = ans, conf, ns
+    # FAISS PDF and image (and memory if requested)
+    for ns in ["pdf", "image"] + (["memory"] if include_memory else []):
+        cand, c = search_faiss_with_score(text, namespace=_session_ns(ns, sid))
+        if c > best_conf:
+            best_answer, best_conf, best_src = _clean(cand or ""), c, ns
 
-    clip_ans = search_images(text, namespace=_session_ns("image", session_id))
-    if "no image" not in clip_ans.lower() and best_conf < 0.5:
-        best_answer, best_conf, best_source = clip_ans, 0.5, "image"
+    # CLIP only if FAISS didn't yield anything meaningful
+    if best_conf == 0.0:
+        clip_res = search_images(text, namespace=_session_ns("image", sid))
+        if "no image" not in clip_res.lower():
+            best_answer, best_conf, best_src = _clean(clip_res), 0.5, "image"
 
     if not best_answer:
         return "No match found", 0.0, None
-    return best_answer, best_conf, best_source
+    return best_answer, best_conf, best_src
 
 
-def query_with_confidence(text: str, session_id: str | None = None):
-    """Return best RAG answer, confidence and source namespace."""
-    best_answer = None
-    best_conf = 0.0
-    best_source = None
-
-    pc_ns = _session_ns("pdf", session_id)
-    pc_ans, pc_conf = search_pinecone_with_score(text, namespace=pc_ns)
-    if pc_conf == 0.0 and session_id:
-        pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
-    if pc_conf > best_conf:
-        best_answer, best_conf, best_source = pc_ans, pc_conf, "pdf"
-
-    for ns in ["pdf", "image", "memory"]:
-        ans, conf = search_faiss_with_score(text, namespace=_session_ns(ns, session_id))
-        if conf == 0.0 and session_id:
-            ans, conf = search_faiss_with_score(text, namespace=ns)
-        if conf > best_conf:
-            best_answer, best_conf, best_source = ans, conf, ns
-
-    clip_ans = search_images(text, namespace=_session_ns("image", session_id))
-    if "no image" not in clip_ans.lower() and best_conf < 0.5:
-        best_answer, best_conf, best_source = clip_ans, 0.5, "image"
-
-    if not best_answer:
-        return "No match found", 0.0, None
-    return best_answer, best_conf, best_source
-
-def query_pdf_image(text: str, session_id: str | None = None):
-    """Return best answer and confidence from PDF and image namespaces only."""
-    best_answer = None
-    best_conf = 0.0
-    best_source = None
-
-    pc_ns = _session_ns("pdf", session_id)
-    pc_ans, pc_conf = search_pinecone_with_score(text, namespace=pc_ns)
-    if pc_conf == 0.0 and session_id:
-        pc_ans, pc_conf = search_pinecone_with_score(text, namespace="pdf")
-    if pc_conf > best_conf:
-        best_answer, best_conf, best_source = pc_ans, pc_conf, "pdf"
-
-    for ns in ["pdf", "image"]:
-        ans, conf = search_faiss_with_score(text, namespace=_session_ns(ns, session_id))
-        if conf == 0.0 and session_id:
-            ans, conf = search_faiss_with_score(text, namespace=ns)
-        if conf > best_conf:
-            best_answer, best_conf, best_source = ans, conf, ns
-
-    clip_ans = search_images(text, namespace=_session_ns("image", session_id))
-    if "no image" not in clip_ans.lower() and best_conf < 0.5:
-        best_answer, best_conf, best_source = clip_ans, 0.5, "image"
-
-    if not best_answer:
-        return "No match found", 0.0, None
-    return best_answer, best_conf, best_source
+def query_pdf_image(text: str, session_id: str | None = None) -> tuple[str, float, str | None]:
+    """Search PDFs and images for ``text`` within ``session_id``."""
+    return _search_all(text, session_id, include_memory=False)
 
 
-def save_memory(question: str, answer: str, session_id: str | None = None):
-    """Persist Q&A pair into a session-scoped FAISS memory namespace."""
-    ingest_text_to_faiss(
-        f"Q: {question}\nA: {answer}",
-        namespace=_session_ns("memory", session_id),
-    )
+def query_with_confidence(text: str, session_id: str | None = None) -> tuple[str, float, str | None]:
+    """Search PDFs, images and memory for ``text``."""
+    return _search_all(text, session_id, include_memory=True)
+
+
+def save_memory(question: str, answer: str, session_id: str | None = None) -> None:
+    """Append Q&A pair to the FAISS memory namespace."""
+    entry = f"Q: {question}\nA: {answer}"
+    ingest_text_to_faiss(entry, namespace=_session_ns("memory", session_id))
     if session_id:
-        memory_cache[session_id].append(f"Q: {question}\nA: {answer}")
+        memory_cache[session_id].append(entry)
 
 
 def load_memory(session_id: str | None, limit: int = 5) -> list[str]:
-    """Return the last ``limit`` memory entries for ``session_id``."""
     if not session_id:
         return []
     return memory_cache.get(session_id, [])[-limit:]
+
+
+def handle_text(text: str, namespace: str | None = None, session_id: str | None = None) -> str:
+    """Return search results or fallback web summary."""
+    pc_result = "No match found"
+    if namespace in (None, "pdf"):
+        pc_result = search_pinecone(text, namespace=_session_ns("pdf", session_id))
+    faiss_result = search_faiss(text, namespace=_session_ns(namespace, session_id) if namespace else None)
+    clip_result = "No image match found"
+    if namespace == "image":
+        clip_result = search_images(text, namespace=_session_ns("image", session_id))
+
+    pc_result = _clean(pc_result)
+    faiss_result = _clean(faiss_result)
+    clip_result = _clean(clip_result)
+
+    if (
+        "no match" in pc_result.lower()
+        and "no faiss" in faiss_result.lower()
+        and (namespace != "image" or "no image" in clip_result.lower())
+    ):
+        if namespace:
+            return "No match found"
+        return search_agent.handle_query(text)
+
+    parts = [f"Pinecone:\n{pc_result or 'No match found'}", f"FAISS:\n{faiss_result or 'No match found'}"]
+    if namespace == "image":
+        parts.append(f"CLIP:\n{clip_result or 'No match found'}")
+    return "\n\n".join(parts)
