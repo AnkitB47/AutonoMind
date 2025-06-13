@@ -2,6 +2,8 @@ import os
 import sys
 import types
 import unittest
+
+os.environ["ENV"] = "dev"
 from unittest.mock import patch, MagicMock
 
 # Stub heavy deps

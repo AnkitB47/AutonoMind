@@ -12,12 +12,42 @@ from agents import search_agent
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from vectorstore.clip_store import ingest_image as ingest_clip_image, search_images
 from cachetools import TTLCache
-from collections import defaultdict
+from collections import defaultdict, deque
+
+
+class StableTTLCache(TTLCache):
+    """TTLCache that avoids evicting the most recent N keys."""
+
+    def __init__(self, maxsize, ttl, keep_last=5, **kwargs):
+        super().__init__(maxsize=maxsize, ttl=ttl, **kwargs)
+        self.recent = deque(maxlen=keep_last)
+
+    def __setitem__(self, key, value):
+        if key in self.recent:
+            self.recent.remove(key)
+        self.recent.append(key)
+        super().__setitem__(key, value)
+
+    def __getitem__(self, key):
+        if key in self.recent:
+            self.recent.remove(key)
+        self.recent.append(key)
+        return super().__getitem__(key)
+
+    def popitem(self):
+        key, val = super().popitem()
+        while key in self.recent and len(self) > 0:
+            key, val = super().popitem()
+        if key in self.recent:
+            self.recent.remove(key)
+        return key, val
 
 # In-memory session tracking for uploaded files
 # Entries expire ``DEFAULT_SESSION_TTL`` seconds after creation.
 DEFAULT_SESSION_TTL = 3600  # 1 hour
-session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
+session_store: TTLCache[str, dict] = StableTTLCache(
+    maxsize=128, ttl=DEFAULT_SESSION_TTL, keep_last=5
+)
 memory_cache: dict[str, list[str]] = defaultdict(list)
 
 
