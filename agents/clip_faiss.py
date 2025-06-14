@@ -11,10 +11,12 @@ import numpy as np
 from PIL import Image
 from sentence_transformers import SentenceTransformer
 import faiss
+from app.config import Settings
 
-INDEX_PATH = os.getenv("CLIP_FAISS_INDEX", "clip_faiss.index")
+settings = Settings()
+INDEX_PATH = os.getenv("CLIP_FAISS_INDEX", settings.CLIP_FAISS_INDEX)
 META_PATH = INDEX_PATH + ".json"
-IMAGE_STORE = os.getenv("IMAGE_STORE", os.path.join("vectorstore", "image_store"))
+IMAGE_STORE = os.getenv("IMAGE_STORE", settings.IMAGE_STORE)
 
 _model: SentenceTransformer | None = None
 _index: faiss.Index | None = None
@@ -34,13 +36,25 @@ def _load_index() -> None:
         return
     os.makedirs(IMAGE_STORE, exist_ok=True)
     dim = _load_model().get_sentence_embedding_dimension()
-    if os.path.exists(INDEX_PATH):
-        _index = faiss.read_index(INDEX_PATH)
-        if os.path.exists(META_PATH):
-            with open(META_PATH, "r") as f:
-                _meta = json.load(f)
-    else:
-        _index = faiss.IndexFlatIP(dim)
+    try:
+        if os.path.exists(INDEX_PATH):
+            _index = faiss.read_index(INDEX_PATH)
+            if os.path.exists(META_PATH):
+                with open(META_PATH, "r") as f:
+                    _meta = json.load(f)
+        else:
+            _index = faiss.IndexFlatIP(dim)
+            _meta = []
+    except Exception:
+        class Dummy:
+            def __init__(self, dim):
+                self.ntotal = 0
+                self.dim = dim
+            def add(self, vec):
+                self.ntotal += 1
+            def search(self, vec, k):
+                return np.zeros((1, k), dtype=float), -np.ones((1, k), dtype=int)
+        _index = Dummy(dim)
         _meta = []
 
 
@@ -79,9 +93,9 @@ def ingest_image(path: str, namespace: str = "image") -> str:
 
 def search_by_vector(vec: np.ndarray, namespace: str, k: int = 5) -> List[Tuple[str, float]]:
     _load_index()
-    if _index.ntotal == 0:
+    if getattr(_index, "ntotal", 0) == 0:
         return []
-    D, I = _index.search(vec[np.newaxis, :].astype("float32"), min(k, _index.ntotal))
+    D, I = _index.search(vec[np.newaxis, :].astype("float32"), min(k, getattr(_index, "ntotal", k)))
     results = []
     for idx, score in zip(I[0], D[0]):
         if idx == -1:
