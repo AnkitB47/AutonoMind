@@ -22,17 +22,14 @@ def load_or_create_faiss():
     if store is not None:
         return
 
-    if os.path.exists(FAISS_INDEX_PATH) and hasattr(FAISS, "load_local"):
+    if os.path.exists(FAISS_INDEX_PATH):
         print(f"✅ Loading FAISS index from {FAISS_INDEX_PATH}")
         store = FAISS.load_local(
             FAISS_INDEX_PATH, embedding_model, allow_dangerous_deserialization=True
         )
     else:
         print(f"⚠️  FAISS index not found. Creating dummy index at {FAISS_INDEX_PATH}")
-        if hasattr(FAISS, "from_documents"):
-            generate_faiss_index(["This is a fallback document."])
-        else:
-            store = []
+        generate_faiss_index(["This is a fallback document."])
 
 
 def search_faiss(query: str, namespace: str | None = None):
@@ -44,13 +41,7 @@ def search_faiss(query: str, namespace: str | None = None):
             metadata matches this value.
     """
     load_or_create_faiss()
-    if hasattr(store, "similarity_search_with_score"):
-        docs_and_scores = store.similarity_search_with_score(query, k=5)
-    else:
-        docs_and_scores = []
-        for text in store:
-            if query in text:
-                docs_and_scores.append((type("Doc", (), {"page_content": text, "metadata": {"source": "generic"}})(), 0.0))
+    docs_and_scores = store.similarity_search_with_score(query, k=5)
 
     if namespace:
         docs_and_scores = [
@@ -69,13 +60,7 @@ def search_faiss(query: str, namespace: str | None = None):
 def search_faiss_with_score(query: str, namespace: str | None = None):
     """Return best matching text and a confidence score."""
     load_or_create_faiss()
-    if hasattr(store, "similarity_search_with_score"):
-        docs_and_scores = store.similarity_search_with_score(query, k=5)
-    else:
-        docs_and_scores = []
-        for text in store:
-            if query in text:
-                docs_and_scores.append((type("Doc", (), {"page_content": text, "metadata": {"source": "generic"}})(), 0.0))
+    docs_and_scores = store.similarity_search_with_score(query, k=5)
 
     if namespace:
         docs_and_scores = [
@@ -97,20 +82,10 @@ def generate_faiss_index(docs: list[str]):
     global store
     print(f"⚙️  Generating FAISS index with {len(docs)} documents...")
 
-    try:
-        documents = [
-            Document(page_content=doc, metadata={"source": f"doc_{i}"})
-            for i, doc in enumerate(docs)
-        ]
-    except Exception:
-        documents = [
-            type("Doc", (), {"page_content": doc, "metadata": {"source": f"doc_{i}"}})()
-            for i, doc in enumerate(docs)
-        ]
-    if hasattr(FAISS, "from_documents"):
-        store = FAISS.from_documents(documents, embedding_model)
-        store.save_local(FAISS_INDEX_PATH)
-        print(f"✅ FAISS index saved at {FAISS_INDEX_PATH}")
-    else:
-        # simple in-memory list for testing
-        store = documents
+    documents = [
+        Document(page_content=doc, metadata={"source": f"doc_{i}"})
+        for i, doc in enumerate(docs)
+    ]
+    store = FAISS.from_documents(documents, embedding_model)
+    store.save_local(FAISS_INDEX_PATH)
+    print(f"✅ FAISS index saved at {FAISS_INDEX_PATH}")

@@ -1,16 +1,15 @@
-# --- app/routes/chat_api.py ---
 """Chat endpoint using RAG search with fallback."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel
-
 from agents import rag_agent, search_agent, translate_agent
-import models.whisper_runner as whisper_runner
-import models.gemini_vision as gemini_vision
+from models.whisper_runner import transcribe_audio
+from models.gemini_vision import extract_image_text
 
 router = APIRouter()
+
 
 class TextPayload(BaseModel):
     text: str
@@ -25,14 +24,14 @@ class SearchPayload(BaseModel):
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)) -> dict:
     data = await file.read()
-    text = gemini_vision.extract_image_text(data)
+    text = extract_image_text(data)
     return {"text": text}
 
 
 @router.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)) -> dict:
     data = await file.read()
-    text = whisper_runner.transcribe_audio(data)
+    text = transcribe_audio(data)
     return {"text": text}
 
 
@@ -78,26 +77,9 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
     if file is not None:
         content = await file.read()
         if file.content_type in {"image/png", "image/jpeg", "image/gif", "image/webp"}:
-            text = gemini_vision.extract_image_text(content)
+            text = extract_image_text(content)
         elif file.content_type in {"audio/wav", "audio/webm", "audio/mpeg", "audio/x-wav"}:
-            text = whisper_runner.transcribe_audio(content)
+            text = transcribe_audio(content)
         else:
             raise HTTPException(status_code=400, detail="Unsupported file type")
-        lang = "en"
-        session_id = None
-        try:
-            form = await request.form()
-            lang = form.get("lang", "en")
-            session_id = form.get("session_id")
-        except Exception:
-            pass
-    else:
-        data = await request.json()
-        text = data.get("message")
-        if not text:
-            raise HTTPException(status_code=400, detail="message required")
-        lang = data.get("lang", "en")
-        session_id = data.get("session_id")
 
-    reply, conf = chat_logic(text, lang, session_id)
-    return {"reply": reply, "confidence": conf}
