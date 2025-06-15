@@ -53,7 +53,7 @@ def search_faiss(query: str, namespace: str | None = None):
     if not docs_and_scores:
         return "No FAISS match found"
 
-    best_doc, _ = max(docs_and_scores, key=lambda x: x[1])
+    best_doc, _ = min(docs_and_scores, key=lambda x: x[1])
     return best_doc.page_content.strip()
 
 

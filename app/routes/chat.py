@@ -43,7 +43,7 @@ def _fallback_search(text: str) -> str:
 
 def _process_chat(text: str, lang: str, session_id: str | None) -> tuple[str, float]:
     ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
-    if conf < 0.6:
+    if conf < 0.6 or src not in {"pdf", "image"}:
         ans = _fallback_search(text)
         conf = 0.0
     rag_agent.save_memory(text, ans, session_id=session_id)

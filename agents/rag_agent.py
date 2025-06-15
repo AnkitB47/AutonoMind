@@ -66,7 +66,7 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
         msg = "✅ PDF ingested"
         meta = {"type": "pdf", "text": text, "timestamp": time.time()}
     elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
-        text = extract_image_text(path)
+        text = extract_image_text(data)
         ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
         ingest_clip_image(path, namespace=_session_ns("image", sid))
         msg = "✅ Image ingested"
@@ -100,7 +100,9 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
     if best_conf == 0.0:
         matches = search_images(text, namespace=_session_ns("image", sid))
         if matches:
-            best_answer, best_conf, best_src = matches[0]["url"], matches[0]["score"], "image"
+            best_answer = matches[0]["url"]
+            best_conf = matches[0]["score"] + 0.5
+            best_src = "image"
 
     if not best_answer:
         return "No match found", 0.0, None

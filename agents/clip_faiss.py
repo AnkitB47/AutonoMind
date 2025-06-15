@@ -78,7 +78,7 @@ def _load_model() -> tuple[object | None, object]:
     try:
         if pipeline is None:
             raise ImportError("transformers pipeline unavailable")
-        _model = pipeline("feature-extraction", model="openai/clip-vit-base-patch32")
+        _model = pipeline("zero-shot-image-classification", model="openai/clip-vit-base-patch32")
         _processor = None
         # Infer dimension from a dummy call
         out = _model("test")
