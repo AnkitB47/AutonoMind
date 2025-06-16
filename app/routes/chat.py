@@ -41,7 +41,7 @@ def _fallback_search(text: str) -> str:
     return "No answer found"
 
 
-def _process_chat(text: str, lang: str, session_id: str | None) -> tuple[str, float]:
+def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float]:
     try:
         ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
     except Exception:
@@ -100,5 +100,5 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id required")
 
-    reply, conf = _process_chat(text, lang, session_id)
+    reply, conf = chat_logic(text, lang, session_id)
     return {"reply": reply, "confidence": conf}

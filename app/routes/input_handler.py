@@ -2,7 +2,7 @@
 import requests
 from fastapi import APIRouter, UploadFile, File
 from agents import search_agent, translate_agent
-from app.routes.chat_api import chat_logic
+from app.routes.chat import chat_logic
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live

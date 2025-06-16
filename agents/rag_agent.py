@@ -70,6 +70,7 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
     elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
         text = extract_image_text(data)
         ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
+        ingest_pdf_to_pinecone(text, namespace=_session_ns("image", sid))
         ingest_clip_image(path, namespace=_session_ns("image", sid))
         msg = "✅ Image ingested"
         meta = {"type": "image", "text": text, "timestamp": time.time()}
@@ -90,10 +91,11 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
     best_conf = 0.0
     best_src: str | None = None
 
-    # Pinecone PDF search
-    ans, conf = search_pinecone_with_score(text, namespace=_session_ns("pdf", sid))
-    if conf > best_conf:
-        best_answer, best_conf, best_src = _clean(ans or ""), conf, "pdf"
+    # Pinecone PDF and image search
+    for ns in ("pdf", "image"):
+        ans, conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid))
+        if conf > best_conf:
+            best_answer, best_conf, best_src = _clean(ans or ""), conf, ns
 
     # FAISS PDF and image (and memory if requested)
     for ns in ["pdf", "image"] + (["memory"] if include_memory else []):
