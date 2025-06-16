@@ -1,13 +1,12 @@
 # --- models/gemini_vision.py ---
 
 import os
-import base64
-import requests
 from io import BytesIO
-from PIL import Image
 import mimetypes
-from app.config import Settings
+from fastapi import HTTPException
+from PIL import Image
 import google.generativeai as genai
+from app.config import Settings
 
 # Allowed MIME types for OCR
 SUPPORTED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
@@ -18,72 +17,55 @@ settings = Settings()
 # Configure the Gemini SDK once globally
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
-
 def extract_image_text(data: bytes | str) -> str:
     """Extract visible text from an image using Gemini Pro Vision."""
     api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        return "Error: GEMINI_API_KEY not set."
+    if not api_key or api_key.lower().startswith("dummy"):
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured")
 
     if isinstance(data, str):
         if not os.path.exists(data):
-            return f"Error: File not found - {data}"
-        with open(data, "rb") as f:
-            image_bytes = f.read()
+            raise HTTPException(status_code=400, detail=f"File not found: {data}")
+        try:
+            with open(data, "rb") as f:
+                image_bytes = f.read()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Unsupported image type")
         mime_type = mimetypes.guess_type(data)[0]
     else:
         image_bytes = data
         mime_type = None
+
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image data")
 
     if not mime_type:
         try:
             img = Image.open(BytesIO(image_bytes))
             mime_type = Image.MIME.get(img.format)
         except Exception:
-            mime_type = "application/octet-stream"
+            raise HTTPException(status_code=400, detail="Unsupported image type")
 
     if mime_type not in SUPPORTED_IMAGE_TYPES:
-        return "❌ Unsupported image type"
-
-    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
-
-    endpoint = (
-        "https://generativelanguage.googleapis.com/v1/models/"
-        "gemini-1.5-pro:generateContent"
-    )
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": "Extract any visible text from this image."},
-                    {
-                        "inlineData": {
-                            "mimeType": mime_type,
-                            "data": encoded_image
-                        }
-                    }
-                ]
-            }
-        ]
-    }
+        raise HTTPException(status_code=400, detail="Unsupported image type")
 
     try:
-        response = requests.post(f"{endpoint}?key={settings.GEMINI_API_KEY}", json=payload, headers=headers)
-        if response.status_code == 200:
-            data = response.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            return f"❌ Gemini API {response.status_code} - {response.text}"
+        img = Image.open(BytesIO(image_bytes))
+        model = genai.GenerativeModel("gemini-1.5-pro")
+        resp = model.generate_content([
+            "Extract any visible text from this image.",
+            img,
+        ])
+        return resp.text
     except Exception as e:
-        return f"❌ Exception during OCR: {str(e)}"
+        raise HTTPException(status_code=502, detail=f"Gemini request failed: {e}")
 
 
 def describe_image(path: str) -> str:
     """Describe objects and scenes in the image using Gemini Vision."""
     api_key = settings.GEMINI_API_KEY
     if not api_key:
-        return "Error: GEMINI_API_KEY not set."
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY not set")
 
     try:
         image = Image.open(path)
@@ -91,14 +73,14 @@ def describe_image(path: str) -> str:
         response = model.generate_content(["Describe this image in detail.", image])
         return response.text
     except Exception as e:
-        return f"Exception during image description: {e}"
+        raise HTTPException(status_code=500, detail=f"Exception during image description: {e}")
 
 
 def summarize_text_gemini(text: str, query: str = "") -> str:
     """Summarize text using Gemini Pro."""
     api_key = settings.GEMINI_API_KEY
     if not api_key:
-        return "❌ GEMINI_API_KEY not set."
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY not set")
 
     try:
         prompt = (
@@ -112,5 +94,5 @@ def summarize_text_gemini(text: str, query: str = "") -> str:
 
         return response.text.strip()
     except Exception as e:
-        return f"❌ Gemini summarization failed: {str(e)}"
+        raise HTTPException(status_code=500, detail=f"Gemini summarization failed: {str(e)}")
 

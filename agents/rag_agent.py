@@ -56,6 +56,7 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
         tmp.write(data)
         path = tmp.name
+    success = False
 
     if suffix == "pdf":
         loader = PyPDFLoader(path)
@@ -65,17 +66,21 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
         ingest_text_to_faiss(text, namespace=_session_ns("pdf", sid))
         msg = "✅ PDF ingested"
         meta = {"type": "pdf", "text": text, "timestamp": time.time()}
+        success = True
     elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
         text = extract_image_text(data)
         ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
         ingest_clip_image(path, namespace=_session_ns("image", sid))
         msg = "✅ Image ingested"
         meta = {"type": "image", "text": text, "timestamp": time.time()}
+        success = True
     else:
-        os.remove(path)
+        if os.path.exists(path):
+            os.remove(path)
         return "❌ Unsupported file format", sid
 
-    os.remove(path)
+    if success and os.path.exists(path):
+        os.remove(path)
     session_store[sid] = meta
     return msg, sid
 

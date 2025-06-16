@@ -1,91 +1,115 @@
-# --- vectorstore/faiss_store.py ---
+from __future__ import annotations
+
 import os
-from langchain_community.vectorstores import FAISS
+import json
+from typing import Tuple, List, Optional
+
+import numpy as np
+import faiss
 from langchain_openai import OpenAIEmbeddings
-from langchain_core.documents import Document
 from app.config import Settings
 
-# Load environment settings
 settings = Settings()
+FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
+META_PATH = FAISS_INDEX_PATH + ".json"
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
 
-# Define constant FAISS path
-FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
-
-# Internal store cache
-store = None
+_index: faiss.IndexIDMap | None = None
+_meta: List[dict] = []
 
 
-def load_or_create_faiss():
-    """Load FAISS index from disk or create a dummy fallback index."""
-    global store
-    if store is not None:
+def _embed_query(text: str) -> List[float]:
+    func = getattr(embedding_model, "embed_query", None)
+    if callable(func):
+        return func(text)
+    return [0.0]
+
+
+def _embed_docs(texts: List[str]) -> List[List[float]]:
+    func = getattr(embedding_model, "embed_documents", None)
+    if callable(func):
+        return func(texts)
+    dim = len(_embed_query("x"))
+    return [[0.0] * dim for _ in texts]
+
+
+def _emb_dim() -> int:
+    return len(_embed_query("dim"))
+
+
+def _load() -> None:
+    global _index, _meta
+    if _index is not None:
         return
-
+    dirpath = os.path.dirname(FAISS_INDEX_PATH)
+    if dirpath:
+        os.makedirs(dirpath, exist_ok=True)
+    dim = _emb_dim()
     if os.path.exists(FAISS_INDEX_PATH):
-        print(f"✅ Loading FAISS index from {FAISS_INDEX_PATH}")
-        store = FAISS.load_local(
-            FAISS_INDEX_PATH, embedding_model, allow_dangerous_deserialization=True
-        )
+        _index = faiss.read_index(FAISS_INDEX_PATH)
+        if not isinstance(_index, faiss.IndexIDMap):
+            _index = faiss.IndexIDMap(_index)
+        if _index.d != dim:
+            _index = faiss.IndexIDMap(faiss.IndexFlatIP(dim))
+            _meta = []
+        if os.path.exists(META_PATH):
+            with open(META_PATH, "r") as f:
+                _meta = json.load(f)
     else:
-        print(f"⚠️  FAISS index not found. Creating dummy index at {FAISS_INDEX_PATH}")
-        generate_faiss_index(["This is a fallback document."])
+        _index = faiss.IndexIDMap(faiss.IndexFlatIP(dim))
+        _meta = []
 
 
-def search_faiss(query: str, namespace: str | None = None):
-    """Query the FAISS index and return the best match.
-
-    Args:
-        query: The search string.
-        namespace: If provided, limit results to documents whose ``source``
-            metadata matches this value.
-    """
-    load_or_create_faiss()
-    docs_and_scores = store.similarity_search_with_score(query, k=5)
-
-    if namespace:
-        docs_and_scores = [
-            (doc, score)
-            for doc, score in docs_and_scores
-            if doc.metadata.get("source") == namespace
-        ]
-
-    if not docs_and_scores:
-        return "No FAISS match found"
-
-    best_doc, _ = min(docs_and_scores, key=lambda x: x[1])
-    return best_doc.page_content.strip()
+def _save() -> None:
+    if _index is None:
+        return
+    faiss.write_index(_index, FAISS_INDEX_PATH)
+    with open(META_PATH, "w") as f:
+        json.dump(_meta, f)
 
 
-def search_faiss_with_score(query: str, namespace: str | None = None):
-    """Return best matching text and a confidence score."""
-    load_or_create_faiss()
-    docs_and_scores = store.similarity_search_with_score(query, k=5)
+def add_texts(texts: List[str], namespace: Optional[str] = None) -> None:
+    if not texts:
+        return
+    _load()
+    vecs = _embed_docs(texts)
+    vecs = np.array(vecs, dtype="float32")
+    start = len(_meta)
+    ids = np.arange(start, start + len(texts), dtype="int64")
+    _index.add_with_ids(vecs, ids)
+    for t in texts:
+        _meta.append({"text": t, "source": namespace or "generic"})
+    _save()
 
-    if namespace:
-        docs_and_scores = [
-            (doc, score)
-            for doc, score in docs_and_scores
-            if doc.metadata.get("source") == namespace
-        ]
 
-    if not docs_and_scores:
+def _search_vec(vec: np.ndarray, namespace: Optional[str]) -> Tuple[Optional[str], float]:
+    _load()
+    if _index.ntotal == 0:
         return None, 0.0
+    D, I = _index.search(vec[np.newaxis, :], min(5, _index.ntotal))
+    best_text = None
+    best_score = -1.0
+    for idx, score in zip(I[0], D[0]):
+        if idx == -1:
+            continue
+        meta = _meta[idx]
+        if namespace and meta.get("source") != namespace:
+            continue
+        if score > best_score:
+            best_text = meta.get("text", "")
+            best_score = float(score)
+    if best_text is None:
+        return None, 0.0
+    return best_text, best_score
 
-    best_doc, best_score = min(docs_and_scores, key=lambda x: x[1])
-    confidence = 1 / (1 + best_score)
-    return best_doc.page_content.strip(), confidence
+
+def search_faiss(query: str, namespace: Optional[str] = None) -> str:
+    vec = np.array(_embed_query(query), dtype="float32")
+    text, _ = _search_vec(vec, namespace)
+    return text.strip() if text else "No FAISS match found"
 
 
-def generate_faiss_index(docs: list[str]):
-    """Generate and save a new FAISS index from a list of strings."""
-    global store
-    print(f"⚙️  Generating FAISS index with {len(docs)} documents...")
-
-    documents = [
-        Document(page_content=doc, metadata={"source": f"doc_{i}"})
-        for i, doc in enumerate(docs)
-    ]
-    store = FAISS.from_documents(documents, embedding_model)
-    store.save_local(FAISS_INDEX_PATH)
-    print(f"✅ FAISS index saved at {FAISS_INDEX_PATH}")
+def search_faiss_with_score(query: str, namespace: Optional[str] = None) -> Tuple[Optional[str], float]:
+    vec = np.array(_embed_query(query), dtype="float32")
+    text, score = _search_vec(vec, namespace)
+    return (text.strip(), score) if text else (None, 0.0)

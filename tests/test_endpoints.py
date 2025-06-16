@@ -6,6 +6,7 @@ import types
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 os.environ.setdefault("ENV", "dev")
+os.environ.setdefault("GEMINI_API_KEY", "testkey")
 class DummyFAISS:
     def __init__(self, docs=None):
         self.docs = docs or []
@@ -33,10 +34,18 @@ mods = {
     "langchain_community.llms": types.SimpleNamespace(OpenAI=object),
     "langchain_core.prompts": types.SimpleNamespace(PromptTemplate=object),
     "google": types.ModuleType("google"),
-    "google.generativeai": types.SimpleNamespace(configure=lambda **_: None),
+    "google.generativeai": types.SimpleNamespace(
+        configure=lambda **_: None,
+        GenerativeModel=lambda *a, **k: types.SimpleNamespace(generate_content=lambda *a, **k: types.SimpleNamespace(text=""))
+    ),
     "langchain_openai": types.SimpleNamespace(ChatOpenAI=object, OpenAIEmbeddings=lambda *a, **k: object()),
     "sentence_transformers": types.SimpleNamespace(SentenceTransformer=lambda *a, **k: types.SimpleNamespace(get_sentence_embedding_dimension=lambda:1, encode=lambda *a, **k: [0.0])),
-    "faiss": types.SimpleNamespace(IndexFlatIP=lambda *a, **k: None, read_index=lambda *a, **k: None, write_index=lambda *a, **k: None),
+    "faiss": types.SimpleNamespace(
+        IndexFlatIP=lambda *a, **k: types.SimpleNamespace(d=1, search=lambda *a, **k: ([0.0], [[-1]])),
+        IndexIDMap=lambda x: types.SimpleNamespace(d=1, ntotal=0, add_with_ids=lambda *a, **k: None, search=lambda *a, **k: ([0.0], [[-1]])),
+        read_index=lambda *a, **k: types.SimpleNamespace(d=1, ntotal=0, add_with_ids=lambda *a, **k: None, search=lambda *a, **k: ([0.0], [[-1]])),
+        write_index=lambda *a, **k: None,
+    ),
     "langchain_community.vectorstores": types.SimpleNamespace(FAISS=DummyFAISS),
     "langchain_core.documents": types.SimpleNamespace(Document=lambda *a, **k: types.SimpleNamespace(page_content=a[0] if a else "", metadata=k.get("metadata", {}))),
     "langchain_text_splitters": types.SimpleNamespace(RecursiveCharacterTextSplitter=lambda *a, **k: object()),

@@ -113,8 +113,13 @@ def _load_index() -> None:
             if os.path.exists(META_PATH):
                 with open(META_PATH, "r") as f:
                     _meta = json.load(f)
+            if not isinstance(_index, faiss.IndexIDMap):
+                _index = faiss.IndexIDMap(_index)
+            if _index.d != dim:
+                _index = faiss.IndexIDMap(faiss.IndexFlatIP(dim))
+                _meta = []
         else:
-            _index = faiss.IndexFlatIP(dim)
+            _index = faiss.IndexIDMap(faiss.IndexFlatIP(dim))
             _meta = []
     except Exception:
         class Dummy:
@@ -142,7 +147,10 @@ def _save_index() -> None:
 
 def _encode_image(data: bytes) -> np.ndarray:
     processor, model = _load_model()
-    img = Image.open(BytesIO(data)).convert("RGB")
+    try:
+        img = Image.open(BytesIO(data)).convert("RGB")
+    except Exception:
+        return np.zeros(_model_dim(model), dtype="float32")
     try:
         import torch
 
@@ -170,7 +178,8 @@ def ingest_image(path: str, namespace: str = "image") -> str:
     with open(path, "rb") as f:
         data = f.read()
     vec = _encode_image(data)
-    _index.add(vec[np.newaxis, :])
+    idx = len(_meta)
+    _index.add_with_ids(vec[np.newaxis, :], np.array([idx], dtype="int64"))
     ext = os.path.splitext(path)[1]
     dest = os.path.join(IMAGE_STORE, f"{uuid.uuid4().hex}{ext}")
     shutil.copy2(path, dest)
@@ -183,7 +192,10 @@ def search_by_vector(vec: np.ndarray, namespace: str, k: int = 5) -> List[Tuple[
     _load_index()
     if getattr(_index, "ntotal", 0) == 0:
         return []
-    D, I = _index.search(vec[np.newaxis, :].astype("float32"), min(k, getattr(_index, "ntotal", k)))
+    try:
+        D, I = _index.search(vec[np.newaxis, :].astype("float32"), min(k, getattr(_index, "ntotal", k)))
+    except Exception:
+        return []
     results = []
     for idx, score in zip(I[0], D[0]):
         if idx == -1:
@@ -194,7 +206,7 @@ def search_by_vector(vec: np.ndarray, namespace: str, k: int = 5) -> List[Tuple[
         path = meta.get("path")
         if path and os.path.exists(path):
             results.append({"url": path, "score": float(score)})
-    return results
+    return results[:k]
 
 
 def search_text(text: str, namespace: str = "image", k: int = 5):

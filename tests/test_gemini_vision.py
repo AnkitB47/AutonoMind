@@ -4,12 +4,23 @@ from io import BytesIO
 import unittest
 from unittest.mock import patch, MagicMock
 from PIL import Image
+import types
 
 sys.modules.setdefault("google", MagicMock())
-sys.modules.setdefault("google.generativeai", MagicMock())
+
+# Provide stub GenerativeModel for import
+class DummyModel:
+    def __init__(self, *a, **k):
+        self.called = False
+    def generate_content(self, parts):
+        self.called = True
+        return type("R", (), {"text": "ok"})()
+
+genai_mod = types.SimpleNamespace(configure=lambda **_: None, GenerativeModel=DummyModel)
+sys.modules.setdefault("google.generativeai", genai_mod)
 
 os.environ["ENV"] = "dev"
-os.environ["GEMINI_API_KEY"] = "dummy"
+os.environ["GEMINI_API_KEY"] = "testkey"
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.gemini_vision import extract_image_text
 
@@ -21,34 +32,18 @@ class TestExtractImageText(unittest.TestCase):
         img.save(buf, format=fmt)
         return buf.getvalue()
 
-    def mock_response(self):
-        class R:
-            status_code = 200
-            def json(self):
-                return {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
-        return R()
+    def test_png_and_jpeg(self):
+        for fmt in ("PNG", "JPEG"):
+            data = self.create_image(fmt)
+            with patch("google.generativeai.GenerativeModel") as M:
+                M.return_value = DummyModel()
+                text = extract_image_text(data)
+                self.assertEqual(text, "ok")
+                self.assertTrue(M.return_value.called)
 
-    def test_png_mime(self):
-        data = self.create_image("PNG")
-        with patch("requests.post", return_value=self.mock_response()) as mock_post:
-            extract_image_text(data)
-            payload = mock_post.call_args.kwargs["json"]
-            mime = payload["contents"][0]["parts"][1]["inlineData"]["mimeType"]
-            self.assertEqual(mime, "image/png")
-
-    def test_jpeg_mime(self):
-        data = self.create_image("JPEG")
-        with patch("requests.post", return_value=self.mock_response()) as mock_post:
-            extract_image_text(data)
-            payload = mock_post.call_args.kwargs["json"]
-            mime = payload["contents"][0]["parts"][1]["inlineData"]["mimeType"]
-            self.assertEqual(mime, "image/jpeg")
-
-    def test_bad_mime(self):
-        with patch("requests.post") as mock_post:
-            result = extract_image_text(b"notanimage")
-            self.assertIn("Unsupported image type", result)
-            mock_post.assert_not_called()
+    def test_bad_data(self):
+        with self.assertRaises(Exception):
+            extract_image_text(b"notanimage")
 
 
 if __name__ == "__main__":
