@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from uuid import uuid4
 from pydantic import BaseModel
 from agents import rag_agent, search_agent, translate_agent
 from models.whisper_runner import transcribe_audio
@@ -98,7 +99,7 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
         session_id = data.get("session_id")
 
     if not session_id:
-        raise HTTPException(status_code=400, detail="session_id required")
+        session_id = str(uuid4())
 
     reply, conf = chat_logic(text, lang, session_id)
     return {"reply": reply, "confidence": conf}

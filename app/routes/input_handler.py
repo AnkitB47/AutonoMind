@@ -18,7 +18,13 @@ async def handle_text_input(payload: dict):
     query = payload.get("query")
     lang = payload.get("lang", "en")
     session_id = payload.get("session_id")
-    reply, _ = chat_logic(query, lang, session_id)
+
+    if query and any(w in query.lower() for w in ("pdf", "image", "document", "file")):
+        reply, _ = chat_logic(query, lang, session_id)
+    else:
+        result = search_agent.handle_query(query)
+        reply = translate_agent.translate_response(result, lang)
+
     return {"response": reply}
 
 

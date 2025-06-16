@@ -33,6 +33,9 @@ Remember that text, voice and image inputs share the `/input` prefix:
 - `POST /input/voice`
 - `POST /input/image`
 
-Upload PDFs or images for retrieval using `POST /upload` and send chat messages via `POST /chat`.
+Text or voice messages that mention terms like "pdf" or "image" trigger the RAG
+pipeline to search any uploaded files. Queries without those keywords fall back
+to the web search agent.
 
-With the correct entry point and base URL, these routes should respond without 404 errors.
+Upload PDFs or images for retrieval using `POST /upload` and send chat messages via `POST /chat`.
+If the request omits a `session_id`, the server now generates a new one automatically.
