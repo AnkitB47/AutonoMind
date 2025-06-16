@@ -23,14 +23,25 @@ async def handle_text_input(payload: dict):
 
 
 @router.post("/voice")
-async def handle_voice_input(file: UploadFile = File(...), lang: str = "en", session_id: str | None = None):
+async def handle_voice_input(
+    file: UploadFile = File(...), lang: str = "en", session_id: str | None = None
+):
     audio_bytes = await file.read()
     if is_runpod_live(RUNPOD_URL):
-        res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": audio_bytes})
+        res = requests.post(
+            f"{RUNPOD_URL}/transcribe", files={"file": audio_bytes}
+        )
         text = res.json().get("text", "")
     else:
         text = transcribe_audio(audio_bytes)
-    reply, _ = chat_logic(text, lang, session_id)
+
+    query = text.lower()
+    if any(w in query for w in ("pdf", "image", "picture", "document", "file")):
+        reply, _ = chat_logic(text, lang, session_id)
+    else:
+        result = search_agent.handle_query(text)
+        reply = translate_agent.translate_response(result, lang)
+
     return {"response": reply}
 
 
