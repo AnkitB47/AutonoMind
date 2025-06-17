@@ -18,8 +18,10 @@ async def handle_text_input(payload: dict):
     query = payload.get("query")
     lang = payload.get("lang", "en")
     session_id = payload.get("session_id")
+    if not query or not query.strip():
+        return {"error": "query required"}
 
-    if query and any(w in query.lower() for w in ("pdf", "image", "document", "file")):
+    if any(w in query.lower() for w in ("pdf", "image", "document", "file")):
         reply, _ = chat_logic(query, lang, session_id)
     else:
         result = search_agent.handle_query(query)
@@ -33,15 +35,22 @@ async def handle_voice_input(
     file: UploadFile = File(...), lang: str = "en", session_id: str | None = None
 ):
     audio_bytes = await file.read()
-    if is_runpod_live(RUNPOD_URL):
-        res = requests.post(
-            f"{RUNPOD_URL}/transcribe", files={"file": audio_bytes}
-        )
-        text = res.json().get("text", "")
-    else:
-        text = transcribe_audio(audio_bytes)
+    if not audio_bytes:
+        return {"error": "empty audio"}
+    try:
+        if is_runpod_live(RUNPOD_URL):
+            res = requests.post(
+                f"{RUNPOD_URL}/transcribe", files={"file": audio_bytes}
+            )
+            text = res.json().get("text", "")
+        else:
+            text = transcribe_audio(audio_bytes)
+    except Exception as e:
+        return {"error": f"transcription failed: {e}"}
 
     query = text.lower()
+    if not query.strip():
+        return {"error": "empty transcription"}
     if any(w in query for w in ("pdf", "image", "picture", "document", "file")):
         reply, _ = chat_logic(text, lang, session_id)
     else:
@@ -54,11 +63,16 @@ async def handle_voice_input(
 @router.post("/image")
 async def handle_image_input(file: UploadFile = File(...), lang: str = "en", session_id: str | None = None):
     image_bytes = await file.read()
-    if is_runpod_live(RUNPOD_URL):
-        res = requests.post(f"{RUNPOD_URL}/vision", files={"file": image_bytes})
-        image_text = res.json().get("text", "")
-    else:
-        image_text = extract_image_text(image_bytes)
+    if not image_bytes:
+        return {"error": "empty image"}
+    try:
+        if is_runpod_live(RUNPOD_URL):
+            res = requests.post(f"{RUNPOD_URL}/vision", files={"file": image_bytes})
+            image_text = res.json().get("text", "")
+        else:
+            image_text = extract_image_text(image_bytes)
+    except Exception as e:
+        return {"error": f"image OCR failed: {e}"}
     reply, _ = chat_logic(image_text, lang, session_id)
     return {"response": reply}
 
@@ -69,6 +83,8 @@ async def handle_search_input(payload: dict):
     lang = payload.get("lang", "en")
     # search endpoint does not use session data but accept it for consistency
     payload.get("session_id")
+    if not query or not query.strip():
+        return {"error": "query required"}
     result = search_agent.handle_query(query)
     translated = translate_agent.translate_response(result, lang)
     return {"response": translated}

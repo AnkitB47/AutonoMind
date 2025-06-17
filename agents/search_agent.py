@@ -86,10 +86,11 @@ def summarize(text: str, query: str, mode: str = "web") -> str:
 
 # --- Entry Point ---
 def handle_query(query: str) -> str:
+    if not query or not query.strip():
+        return "❌ Empty search query"
     query_lower = query.lower()
     if "arxiv" in query_lower:
         return search_arxiv(query)
-    elif "science" in query_lower or "paper" in query_lower:
+    if "science" in query_lower or "paper" in query_lower:
         return search_semantic_scholar(query)
-    else:
-        return search_web(query)
+    return search_web(query)

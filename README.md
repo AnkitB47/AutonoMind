@@ -4,10 +4,10 @@ This project contains a FastAPI backend and a Next.js frontend.
 
 ## Starting the backend
 
-Make sure you launch the FastAPI application from `app/main_fastapi.py` so that all routers are loaded:
+Make sure you launch the FastAPI application from `app/main.py` so that all routers are loaded:
 
 ```bash
-uvicorn app.main_fastapi:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Frontend configuration
@@ -18,6 +18,9 @@ requests. In production you can leave this variable unset and the frontend will
 route `/api/*` requests through the Next.js server, which proxies to the local
 FastAPI instance. To explicitly point to a remote API, set
 `NEXT_PUBLIC_FASTAPI_URL` to your public RunPod proxy URL.
+
+When `RUNPOD_URL` is configured on the backend, heavy tasks like audio
+transcription and image OCR will be delegated to that remote pod.
 
 ```bash
 NEXT_PUBLIC_FASTAPI_URL=http://localhost:8000 npm run dev
@@ -39,3 +42,4 @@ to the web search agent.
 
 Upload PDFs or images for retrieval using `POST /upload` and send chat messages via `POST /chat`.
 If the request omits a `session_id`, the server now generates a new one automatically.
+Each session id remains valid for roughly an hour so your uploaded files can be queried.

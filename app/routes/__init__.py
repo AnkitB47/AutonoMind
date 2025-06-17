@@ -1,3 +1,3 @@
-from . import upload, chat, image_similarity
+from . import upload, chat, image_similarity, input_handler
 
-__all__ = ["upload", "chat", "image_similarity"]
+__all__ = ["upload", "chat", "image_similarity", "input_handler"]

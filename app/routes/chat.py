@@ -7,6 +7,12 @@ from pydantic import BaseModel
 from agents import rag_agent, search_agent, translate_agent
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
+from agents.pod_monitor import is_runpod_live
+from app.config import Settings
+import requests
+
+settings = Settings()
+RUNPOD_URL = settings.RUNPOD_URL
 
 router = APIRouter(tags=["chat"])
 
@@ -19,14 +25,22 @@ class ChatRequest(BaseModel):
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)) -> dict:
     data = await file.read()
-    text = extract_image_text(data)
+    if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
+        res = requests.post(f"{RUNPOD_URL}/vision", files={"file": data})
+        text = res.json().get("text", "")
+    else:
+        text = extract_image_text(data)
     return {"text": text}
 
 
 @router.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)) -> dict:
     data = await file.read()
-    text = transcribe_audio(data)
+    if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
+        res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": data})
+        text = res.json().get("text", "")
+    else:
+        text = transcribe_audio(data)
     return {"text": text}
 
 
@@ -83,13 +97,23 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
             pass
         try:
             if file.content_type in {"image/png", "image/jpeg", "image/gif", "image/webp"}:
-                text = extract_image_text(content)
+                if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
+                    res = requests.post(f"{RUNPOD_URL}/vision", files={"file": content})
+                    text = res.json().get("text", "")
+                else:
+                    text = extract_image_text(content)
             elif file.content_type in {"audio/wav", "audio/webm", "audio/mpeg", "audio/x-wav"}:
-                text = transcribe_audio(content)
+                if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
+                    res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": content})
+                    text = res.json().get("text", "")
+                else:
+                    text = transcribe_audio(content)
             else:
                 raise HTTPException(status_code=400, detail="Unsupported file type")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Processing failed: {e}")
     else:
         data = await request.json()
         text = data.get("message")

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import upload, chat, image_similarity
+from app.routes import upload, chat, image_similarity, input_handler
 
 app = FastAPI(title="AutonoMind API", version="2.0")
 
@@ -22,3 +22,4 @@ def root() -> dict:
 app.include_router(upload.router)
 app.include_router(chat.router)
 app.include_router(image_similarity.router)
+app.include_router(input_handler.router)
