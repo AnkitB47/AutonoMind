@@ -1,7 +1,10 @@
 # --- vectorstore/faiss_embed_and_store.py ---
 import os
+import logging
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.config import Settings
+
+logger = logging.getLogger(__name__)
 
 # Load environment settings
 settings = Settings()
@@ -27,4 +30,4 @@ def ingest_text_to_faiss(text: str, namespace: str = None):
     try:
         faiss_store.add_texts(chunks, namespace)
     except Exception as e:
-        print(f"❌ FAISS ingest failed: {e}")
+        logger.exception("\u274c FAISS ingest failed: %s", e)

@@ -1,5 +1,6 @@
 # --- vectorstore/pinecone_store.py ---
 import os
+import logging
 import fitz
 from app.config import Settings
 from pinecone import Pinecone
@@ -7,6 +8,8 @@ from langchain_pinecone import PineconeVectorStore
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+
+logger = logging.getLogger(__name__)
 
 # Load environment settings
 settings = Settings()
@@ -63,7 +66,7 @@ def upsert_document(text, namespace=None, metadata=None):
     )
     vectorstore.add_documents(documents=docs)
     stats = pc.Index(index_name).describe_index_stats()
-    print(f"Pinecone count: {stats['total_vector_count']}")
+    logger.info("Pinecone count: %s", stats['total_vector_count'])
 
 
 def ingest_pdf_text_to_pinecone(text, namespace=None, source=""):

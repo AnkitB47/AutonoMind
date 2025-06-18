@@ -36,9 +36,9 @@ Remember that text, voice and image inputs share the `/input` prefix:
 - `POST /input/voice`
 - `POST /input/image`
 
-Text or voice messages that mention terms like "pdf" or "image" trigger the RAG
-pipeline to search any uploaded files. Queries without those keywords fall back
-to the web search agent.
+`/input/text` and `/input/search` run a regular web search for the given query.
+`/input/voice` returns the transcribed text of the uploaded audio file.
+Use `/chat` to question any PDFs or images you've uploaded previously.
 
 Upload PDFs or images for retrieval using `POST /upload` and send chat messages via `POST /chat`.
 If the request omits a `session_id`, the server now generates a new one automatically.

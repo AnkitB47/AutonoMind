@@ -11,20 +11,39 @@ export async function sendChat(
   opts: SessionOpts = {}
 ) {
   const { sessionId } = opts;
-  if (mode === 'text' || mode === 'search') {
-    const { data } = await fastApi.post('/chat', {
-      message: input,
+
+  if (mode === 'text') {
+    const { data } = await fastApi.post('/input/text', {
+      query: input,
       lang,
       session_id: sessionId
     });
-    return data.reply || '...';
+    return data.response || '...';
   }
+
+  if (mode === 'search') {
+    const { data } = await fastApi.post('/input/search', {
+      query: input,
+      lang,
+      session_id: sessionId
+    });
+    return data.response || '...';
+  }
+
   const form = new FormData();
   form.append('file', input);
   form.append('lang', lang);
   if (sessionId) form.append('session_id', sessionId);
-  const { data } = await fastApi.post('/chat', form);
-  return data.reply || '...';
+
+  if (mode === 'voice') {
+    const { data } = await fastApi.post('/input/voice', form);
+    return data.response || '...';
+  }
+
+  if (mode === 'image') {
+    const { data } = await fastApi.post('/upload', form);
+    return data.message || 'uploaded';
+  }
 }
 
 

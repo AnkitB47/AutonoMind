@@ -2,10 +2,10 @@
 import requests
 from fastapi import APIRouter, UploadFile, File
 from agents import search_agent, translate_agent
-from app.routes.chat import chat_logic
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live
+from app.routes.chat import chat_logic
 from app.config import Settings
 
 settings = Settings()
@@ -21,7 +21,7 @@ async def handle_text_input(payload: dict):
     if not query or not query.strip():
         return {"error": "query required"}
 
-    if any(w in query.lower() for w in ("pdf", "image", "document", "file")):
+    if session_id:
         reply, _ = chat_logic(query, lang, session_id)
     else:
         result = search_agent.handle_query(query)
@@ -51,7 +51,7 @@ async def handle_voice_input(
     query = text.lower()
     if not query.strip():
         return {"error": "empty transcription"}
-    if any(w in query for w in ("pdf", "image", "picture", "document", "file")):
+    if session_id:
         reply, _ = chat_logic(text, lang, session_id)
     else:
         result = search_agent.handle_query(text)
