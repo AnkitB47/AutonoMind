@@ -22,9 +22,7 @@ class Settings:
         self.SERPAPI_API_KEY = self._get("SERPAPI_API_KEY")
         self.MODEL_PATH = self._get("MODEL_PATH")
         self.FAISS_INDEX_PATH = self._get("FAISS_INDEX_PATH")
-        self.IMAGE_STORE = os.path.abspath(
-            os.getenv("IMAGE_STORE", default_image_store)
-        )
+        self.CLIP_FAISS_INDEX = os.getenv("CLIP_FAISS_INDEX", "clip_faiss.index")
 
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         default_image_store = os.path.join(repo_root, "vectorstore", "image_store")
