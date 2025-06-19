@@ -2,6 +2,8 @@ import os
 import requests
 from models.gemini_vision import summarize_text_gemini
 from langchain_openai import ChatOpenAI
+from urllib.parse import quote_plus
+import string
 
 # --- Web Search using SerpAPI ---
 def search_web(query: str) -> str:
@@ -31,9 +33,10 @@ def search_web(query: str) -> str:
 # --- arXiv Scientific Search ---
 def search_arxiv(query: str) -> str:
     try:
+        sanitized = quote_plus(query.rstrip(string.punctuation).strip())
         url = "http://export.arxiv.org/api/query"
         params = {
-            "search_query": f"all:{query}",
+            "search_query": f"all:{sanitized}",
             "start": 0,
             "max_results": 3,
         }

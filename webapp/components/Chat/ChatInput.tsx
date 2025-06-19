@@ -14,6 +14,7 @@ export default function ChatInput() {
   const handleSend = () => {
     if (mode === 'image' && file) {
       sendUserInput(file);
+      setMode('text');
       setFile(null);
       return;
     }
