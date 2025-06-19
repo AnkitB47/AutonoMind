@@ -61,7 +61,7 @@ def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float
         ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
     except Exception:
         ans, conf, src = "", 0.0, None
-    if conf < 0.6 or src not in {"pdf", "image"}:
+    if conf < 0.3 or src not in {"pdf", "image"}:
         for fn in (
             search_agent.search_arxiv,
             search_agent.search_semantic_scholar,
