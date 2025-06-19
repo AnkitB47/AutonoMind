@@ -42,7 +42,7 @@ export async function sendChat(
 
   if (mode === 'image') {
     const { data } = await fastApi.post('/upload', form);
-    return data.message || 'uploaded';
+    return (data.message || 'uploaded') as string;
   }
 }
 
@@ -58,12 +58,16 @@ export async function uploadPdfFile(file: File, lang: string, opts: SessionOpts 
 }
 
 
-export async function uploadFile(file: File, lang: string, opts: SessionOpts = {}) {
+export async function uploadFile(
+  file: File,
+  lang: string,
+  opts: SessionOpts = {}
+) {
   const { sessionId } = opts;
   const form = new FormData();
   form.append('file', file);
   form.append('lang', lang);
   if (sessionId) form.append('session_id', sessionId);
   const { data } = await fastApi.post('/upload', form);
-  return data.result || data.message || 'uploaded';
+  return data as { message: string; session_id?: string; result?: string };
 }

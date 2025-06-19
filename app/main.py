@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.routes import upload, chat, image_similarity, input_handler
+from app.config import Settings
 
+settings = Settings()
 app = FastAPI(title="AutonoMind API", version="2.0")
+app.mount("/images", StaticFiles(directory=settings.IMAGE_STORE), name="images")
 
 # Enable CORS for all origins. In production you might restrict this.
 app.add_middleware(

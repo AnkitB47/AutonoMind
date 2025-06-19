@@ -128,4 +128,4 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
         session_id = str(uuid4())
 
     reply, conf = chat_logic(text, lang, session_id)
-    return {"reply": reply, "confidence": conf}
+    return {"reply": reply, "confidence": conf, "session_id": session_id}

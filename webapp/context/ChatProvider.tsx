@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useState, ReactNode } from 'react';
-import { sendChat, uploadFile as uploadFileSvc } from '../services/chatService';
+import { sendChat } from '../services/chatService';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
@@ -18,6 +18,7 @@ interface ChatCtx {
   setLanguage: (l: string) => void;
   setMode: (m: Mode) => void;
   sessionId: string;
+  setSessionId: (id: string) => void;
   sendUserInput: (value: string | File | Blob) => void;
   clearMessages: () => void;
 }
@@ -30,7 +31,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('en');
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
 
   const sendUserInput = async (input: string | File | Blob) => {
     setMessages((m) => [
@@ -61,6 +62,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setLanguage,
         setMode,
         sessionId,
+        setSessionId,
         sendUserInput,
         clearMessages,
       }}

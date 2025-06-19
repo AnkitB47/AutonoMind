@@ -205,7 +205,8 @@ def search_by_vector(vec: np.ndarray, namespace: str, k: int = 5) -> List[Tuple[
             continue
         path = meta.get("path")
         if path and os.path.exists(path):
-            results.append({"url": path, "score": float(score)})
+            filename = os.path.basename(path)
+            results.append({"url": f"/images/{filename}", "score": float(score)})
     return results[:k]
 
 

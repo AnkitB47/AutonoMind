@@ -41,5 +41,6 @@ Remember that text, voice and image inputs share the `/input` prefix:
 Use `/chat` to question any PDFs or images you've uploaded previously.
 
 Upload PDFs or images for retrieval using `POST /upload` and send chat messages via `POST /chat`.
-If the request omits a `session_id`, the server now generates a new one automatically.
-Each session id remains valid for roughly an hour so your uploaded files can be queried.
+If the request omits a `session_id`, the server now generates a new one automatically and
+returns it in the response. Keep this id and include it in later requests so your uploaded
+files can be queried. Each session id remains valid for roughly an hour.

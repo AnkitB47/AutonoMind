@@ -11,7 +11,7 @@ import { validateFile } from '../utils/validateFile';
 export default function useFileUpload() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  const { language, sessionId } = useContext(ChatContext);
+  const { language, sessionId, setSessionId } = useContext(ChatContext);
 
   const upload = async (file: File) => {
     if (!validateFile(file)) {
@@ -21,7 +21,8 @@ export default function useFileUpload() {
     setLoading(true);
     try {
       const res = await uploadFileSvc(file, language, { sessionId });
-      setResult(res);
+      if (res.session_id) setSessionId(res.session_id);
+      setResult(res.message || res.result || 'uploaded');
     } catch (err) {
       setResult('error');
       console.error(err);
