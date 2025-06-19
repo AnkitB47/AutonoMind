@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from uuid import uuid4
 from pydantic import BaseModel
 from agents import rag_agent, search_agent, translate_agent
+from agents.rag_agent import search_clip_image
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live
@@ -99,6 +100,11 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
             pass
         try:
             if file.content_type in {"image/png", "image/jpeg", "image/gif", "image/webp"}:
+                # First try CLIP similarity search when a session id is present
+                if session_id:
+                    url, conf = search_clip_image(content, session_id)
+                    if conf >= 0.6:
+                        return {"reply": url, "confidence": conf, "session_id": session_id}
                 if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
                     res = requests.post(f"{RUNPOD_URL}/vision", files={"file": content})
                     text = res.json().get("text", "")

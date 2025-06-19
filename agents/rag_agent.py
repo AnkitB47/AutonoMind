@@ -15,7 +15,11 @@ from langchain_community.document_loaders import PyPDFLoader
 from agents import search_agent
 
 from models.gemini_vision import extract_image_text
-from agents.clip_faiss import ingest_image as ingest_clip_image, search_text as search_images
+from agents.clip_faiss import (
+    ingest_image as ingest_clip_image,
+    search_text as search_images,
+    search_image,
+)
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from vectorstore.faiss_store import search_faiss, search_faiss_with_score
 from vectorstore.pinecone_store import (
@@ -30,6 +34,7 @@ __all__ = [
     "query_with_confidence",
     "save_memory",
     "load_memory",
+    "search_clip_image",
 ]
 
 # Session caches
@@ -87,28 +92,33 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
 
 
 def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, float, str | None]:
+    def _norm(x: float) -> float:
+        return max(0.0, min(1.0, x))
+
     best_answer = ""
     best_conf = 0.0
     best_src: str | None = None
 
     # Pinecone PDF and image search
     for ns in ("pdf", "image"):
-        ans, conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid))
+        ans, raw_conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid))
+        conf = _norm(raw_conf)
         if conf > best_conf:
             best_answer, best_conf, best_src = _clean(ans or ""), conf, ns
 
     # FAISS PDF and image (and memory if requested)
     for ns in ["pdf", "image"] + (["memory"] if include_memory else []):
-        cand, c = search_faiss_with_score(text, namespace=_session_ns(ns, sid))
+        cand, raw_c = search_faiss_with_score(text, namespace=_session_ns(ns, sid))
+        c = _norm(raw_c)
         if c > best_conf:
             best_answer, best_conf, best_src = _clean(cand or ""), c, ns
 
-    # CLIP only if FAISS didn't yield anything meaningful
-    if best_conf == 0.0:
+    # CLIP fallback if confidence is low
+    if best_conf < 0.6:
         matches = search_images(text, namespace=_session_ns("image", sid))
         if matches:
             best_answer = matches[0]["url"]
-            best_conf = matches[0]["score"] + 0.5
+            best_conf = _norm(matches[0]["score"])
             best_src = "image"
 
     if not best_answer:
@@ -132,6 +142,16 @@ def save_memory(question: str, answer: str, session_id: str | None = None) -> No
     ingest_text_to_faiss(entry, namespace=_session_ns("memory", session_id))
     if session_id:
         memory_cache[session_id].append(entry)
+
+
+def search_clip_image(data: bytes, session_id: str | None = None) -> tuple[str, float]:
+    """Return best CLIP match for ``data`` within ``session_id``."""
+    matches = search_image(data, namespace=_session_ns("image", session_id))
+    if not matches:
+        return "", 0.0
+    best = matches[0]
+    score = max(0.0, min(1.0, float(best.get("score", 0.0))))
+    return best.get("url", ""), score
 
 
 def load_memory(session_id: str | None, limit: int = 5) -> list[str]:

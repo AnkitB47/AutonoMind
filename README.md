@@ -44,3 +44,10 @@ Upload PDFs or images for retrieval using `POST /upload` and send chat messages 
 If the request omits a `session_id`, the server now generates a new one automatically and
 returns it in the response. Keep this id and include it in later requests so your uploaded
 files can be queried. Each session id remains valid for roughly an hour.
+
+Images uploaded for CLIP similarity search are stored under the `/images`
+path exposed by the API. Results returned by `/search/image-similarity` use
+these URLs so they can be viewed directly in the browser.
+When you POST an image to `/chat`, the server now tries an image similarity
+lookup first and only falls back to OCR-based search when no strong match is
+found.
