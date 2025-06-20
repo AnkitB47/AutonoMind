@@ -11,6 +11,8 @@ from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live
 from app.config import Settings
 import requests
+import tempfile
+import os
 
 settings = Settings()
 RUNPOD_URL = settings.RUNPOD_URL
@@ -58,13 +60,16 @@ def _fallback_search(text: str) -> str:
 
 
 def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float]:
+    """Run RAG search with fallbacks and save memory."""
     try:
-        ans, conf, src = rag_agent.query_with_confidence(
-            text, session_id=session_id
-        )
+        ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
     except Exception:
         ans, conf, src = "", 0.0, None
-    if conf < 0.3 or src not in {"pdf", "image", "memory"}:
+    if conf >= 0.6 and src == "image":
+        rag_agent.save_memory(text, ans, session_id=session_id)
+        translated = translate_agent.translate_response(ans, lang)
+        return translated, conf
+    if conf < 0.6 or src not in {"pdf", "image"}:
         for fn in (
             search_agent.search_arxiv,
             search_agent.search_semantic_scholar,
@@ -99,17 +104,12 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
         except Exception:
             pass
         try:
-            if file.content_type in {"image/png", "image/jpeg", "image/gif", "image/webp"}:
-                # First try CLIP similarity search when a session id is present
-                if session_id:
-                    url, conf = search_clip_image(content, session_id)
-                    if conf >= 0.6:
-                        return {"reply": url, "confidence": conf, "session_id": session_id}
-                if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
-                    res = requests.post(f"{RUNPOD_URL}/vision", files={"file": content})
-                    text = res.json().get("text", "")
-                else:
-                    text = extract_image_text(content)
+            if file.content_type and file.content_type.startswith("image/"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".img") as tmp:
+                    tmp.write(content)
+                    tmp_path = tmp.name
+                text = extract_image_text(tmp_path)
+                os.remove(tmp_path)
             elif file.content_type in {"audio/wav", "audio/webm", "audio/mpeg", "audio/x-wav"}:
                 if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
                     res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": content})

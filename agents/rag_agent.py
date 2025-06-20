@@ -73,9 +73,8 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
         meta = {"type": "pdf", "text": text, "timestamp": time.time()}
         success = True
     elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
-        text = extract_image_text(data)
+        text = extract_image_text(path)
         ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
-        ingest_pdf_to_pinecone(text, namespace=_session_ns("image", sid))
         ingest_clip_image(path, namespace=_session_ns("image", sid))
         msg = "✅ Image ingested"
         meta = {"type": "image", "text": text, "timestamp": time.time()}
@@ -99,8 +98,8 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
     best_conf = 0.0
     best_src: str | None = None
 
-    # Pinecone PDF and image search
-    for ns in ("pdf", "image"):
+    # Pinecone search for PDFs only
+    for ns in ("pdf",):
         ans, raw_conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid))
         conf = _norm(raw_conf)
         if conf > best_conf:

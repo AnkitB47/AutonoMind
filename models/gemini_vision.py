@@ -17,24 +17,26 @@ settings = Settings()
 # Configure the Gemini SDK once globally
 genai.configure(api_key=settings.GEMINI_API_KEY)
 
-def extract_image_text(data: bytes | str) -> str:
-    """Extract visible text from an image using Gemini Pro Vision."""
+def extract_image_text(path: str) -> str:
+    """Extract visible text from an image using Gemini Pro Vision.
+
+    ``path`` must be a filesystem path to the image file. The function will
+    validate the path, ensure the MIME type is supported and then send the
+    image bytes to Gemini for OCR.
+    """
     api_key = settings.GEMINI_API_KEY
     if not api_key or api_key.lower().startswith("dummy"):
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured")
 
-    if isinstance(data, str):
-        if not os.path.exists(data):
-            raise HTTPException(status_code=400, detail=f"File not found: {data}")
-        try:
-            with open(data, "rb") as f:
-                image_bytes = f.read()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Unsupported image type")
-        mime_type = mimetypes.guess_type(data)[0]
-    else:
-        image_bytes = data
-        mime_type = None
+    if not isinstance(path, str) or not os.path.exists(path):
+        raise HTTPException(status_code=400, detail=f"File not found: {path}")
+    try:
+        with open(path, "rb") as f:
+            image_bytes = f.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Unsupported image type")
+
+    mime_type = mimetypes.guess_type(path)[0]
 
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Empty image data")
@@ -95,4 +97,3 @@ def summarize_text_gemini(text: str, query: str = "") -> str:
         return response.text.strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gemini summarization failed: {str(e)}")
-
