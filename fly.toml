@@ -2,6 +2,7 @@ app = "autonomind"
 
 [build]
   dockerfile = "docker/Dockerfile.cpu"
+  args = ["NEXT_PUBLIC_FASTAPI_URL","MIN_CONFIDENCE"]
 
 [experimental]
   auto_rollback = true
