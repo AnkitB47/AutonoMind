@@ -82,11 +82,12 @@ def add_texts(texts: List[str], namespace: Optional[str] = None) -> None:
     _save()
 
 
-def _search_vec(vec: np.ndarray, namespace: Optional[str]) -> Tuple[Optional[str], float]:
+def _search_vec(vec: np.ndarray, namespace: Optional[str], k: int = 50) -> Tuple[Optional[str], float]:
     _load()
     if _index.ntotal == 0:
         return None, 0.0
-    D, I = _index.search(vec[np.newaxis, :], min(5, _index.ntotal))
+    # search a larger window then filter by namespace to avoid missing hits
+    D, I = _index.search(vec[np.newaxis, :], min(k, _index.ntotal))
     best_text = None
     best_score = -1.0
     for idx, score in zip(I[0], D[0]):
@@ -105,11 +106,11 @@ def _search_vec(vec: np.ndarray, namespace: Optional[str]) -> Tuple[Optional[str
 
 def search_faiss(query: str, namespace: Optional[str] = None) -> str:
     vec = np.array(_embed_query(query), dtype="float32")
-    text, _ = _search_vec(vec, namespace)
+    text, _ = _search_vec(vec, namespace, k=50)
     return text.strip() if text else "No FAISS match found"
 
 
 def search_faiss_with_score(query: str, namespace: Optional[str] = None) -> Tuple[Optional[str], float]:
     vec = np.array(_embed_query(query), dtype="float32")
-    text, score = _search_vec(vec, namespace)
+    text, score = _search_vec(vec, namespace, k=50)
     return (text.strip(), score) if text else (None, 0.0)

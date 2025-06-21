@@ -76,8 +76,9 @@ class EndpointStubs(unittest.TestCase):
 
     @patch("agents.rag_agent.search_pinecone_with_score", return_value=("", 0.0))
     @patch("agents.clip_faiss.search_text", return_value=[])
-    def test_clip_fallback(self, _1, _2):
-        ans, conf, src = __import__("agents.rag_agent", fromlist=["query_pdf_image"]).query_pdf_image("q")
+    @patch("agents.clip_faiss._load_model", return_value=(None, types.SimpleNamespace(projection_dim=1)))
+    def test_clip_fallback(self, _1, _2, _3):
+        ans, conf, src = __import__("agents.rag_agent", fromlist=["query_pdf_image"]).query_pdf_image("q", session_id="s")
         self.assertIsInstance(ans, str)
 
 if __name__ == "__main__":

@@ -27,17 +27,25 @@ class ChatRequest(BaseModel):
 
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)) -> dict:
+    settings.validate_api_keys()
     data = await file.read()
     if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
         res = requests.post(f"{RUNPOD_URL}/vision", files={"file": data})
         text = res.json().get("text", "")
     else:
-        text = extract_image_text(data)
+        with tempfile.NamedTemporaryFile(suffix=".img", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        try:
+            text = extract_image_text(tmp_path)
+        finally:
+            os.remove(tmp_path)
     return {"text": text}
 
 
 @router.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)) -> dict:
+    settings.validate_api_keys()
     data = await file.read()
     if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
         res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": data})
@@ -65,11 +73,11 @@ def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float
         ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
     except Exception:
         ans, conf, src = "", 0.0, None
-    if conf >= 0.6 and src == "image":
+    if conf >= settings.MIN_CLIP_CONFIDENCE and src == "image":
         rag_agent.save_memory(text, ans, session_id=session_id)
         translated = translate_agent.translate_response(ans, lang)
         return translated, conf
-    if conf < 0.6 or src not in {"pdf", "image"}:
+    if conf < settings.MIN_RAG_CONFIDENCE or src not in {"pdf", "image"}:
         for fn in (
             search_agent.search_arxiv,
             search_agent.search_semantic_scholar,
@@ -91,6 +99,7 @@ def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float
 
 @router.post("/chat")
 async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) -> dict:
+    settings.validate_api_keys()
     if file is not None:
         content = await file.read()
         if not content:
@@ -108,8 +117,10 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".img") as tmp:
                     tmp.write(content)
                     tmp_path = tmp.name
-                text = extract_image_text(tmp_path)
-                os.remove(tmp_path)
+                try:
+                    text = extract_image_text(tmp_path)
+                finally:
+                    os.remove(tmp_path)
             elif file.content_type in {"audio/wav", "audio/webm", "audio/mpeg", "audio/x-wav"}:
                 if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
                     res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": content})
@@ -131,7 +142,7 @@ async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) 
         session_id = data.get("session_id")
 
     if not session_id:
-        session_id = str(uuid4())
+        raise HTTPException(status_code=400, detail="session_id required")
 
     reply, conf = chat_logic(text, lang, session_id)
     return {"reply": reply, "confidence": conf, "session_id": session_id}

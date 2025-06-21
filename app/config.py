@@ -31,6 +31,10 @@ class Settings:
         # Optional values
         self.RUNPOD_URL = os.getenv("RUNPOD_URL", "")
         self.USE_GPU = os.getenv("USE_GPU", "False").lower() == "true"
+        base_conf = float(os.getenv("MIN_CONFIDENCE", "0.6"))
+        self.MIN_RAG_CONFIDENCE = base_conf
+        self.MIN_CLIP_CONFIDENCE = float(os.getenv("CLIP_MIN_CONFIDENCE", "0.3"))
+
 
     def _get(self, key):
         value = os.getenv(key)
@@ -40,3 +44,18 @@ class Settings:
                 return f"DUMMY_{key}"
             raise EnvironmentError(f"❌ Environment variable `{key}` is not set.")
         return value
+
+
+    def validate_api_keys(self) -> None:
+        """Raise an exception if critical API keys are still dummy placeholders."""
+        required = {
+            "OPENAI_API_KEY": self.OPENAI_API_KEY,
+            "PINECONE_API_KEY": self.PINECONE_API_KEY,
+            "GEMINI_API_KEY": self.GEMINI_API_KEY,
+        }
+        for name, val in required.items():
+            if not val or val.lower().startswith("dummy"):
+                if self.env == "production":
+                    raise EnvironmentError(f"{name} is not configured")
+                else:
+                    print(f"⚠️  {name} is not configured")

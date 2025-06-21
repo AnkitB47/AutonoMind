@@ -13,6 +13,9 @@ import time
 from cachetools import TTLCache
 from langchain_community.document_loaders import PyPDFLoader
 from agents import search_agent
+from app.config import Settings
+
+settings = Settings()
 
 from models.gemini_vision import extract_image_text
 from agents.clip_faiss import (
@@ -67,6 +70,21 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
         loader = PyPDFLoader(path)
         docs = loader.load()
         text = "\n".join(p.page_content for p in docs)
+        if not text.strip():
+            try:
+                import fitz
+                doc = fitz.open(path)
+                ocr_parts = []
+                for page in doc:
+                    pix = page.get_pixmap()
+                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as img_tmp:
+                        pix.save(img_tmp.name)
+                        page_text = extract_image_text(img_tmp.name)
+                    os.remove(img_tmp.name)
+                    ocr_parts.append(page_text)
+                text = "\n".join(ocr_parts)
+            except Exception:
+                text = ""
         ingest_pdf_to_pinecone(text, namespace=_session_ns("pdf", sid))
         ingest_text_to_faiss(text, namespace=_session_ns("pdf", sid))
         msg = "✅ PDF ingested"
@@ -112,9 +130,9 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
         if c > best_conf:
             best_answer, best_conf, best_src = _clean(cand or ""), c, ns
 
-    # CLIP fallback if confidence is low
-    if best_conf < 0.6:
-        matches = search_images(text, namespace=_session_ns("image", sid))
+    # CLIP fallback if confidence is low␊
+    if best_conf < settings.MIN_RAG_CONFIDENCE:
+        matches = search_images(text, namespace=_session_ns("image", sid), k=5)
         if matches:
             best_answer = matches[0]["url"]
             best_conf = _norm(matches[0]["score"])
@@ -127,11 +145,15 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
 
 def query_pdf_image(text: str, session_id: str | None = None) -> tuple[str, float, str | None]:
     """Search PDFs and images for ``text`` within ``session_id``."""
+    if not session_id:
+        raise ValueError("session_id required")
     return _search_all(text, session_id, include_memory=False)
 
 
 def query_with_confidence(text: str, session_id: str | None = None) -> tuple[str, float, str | None]:
     """Search PDFs, images and memory for ``text``."""
+    if not session_id:
+        raise ValueError("session_id required")
     return _search_all(text, session_id, include_memory=True)
 
 

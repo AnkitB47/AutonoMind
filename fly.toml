@@ -6,6 +6,9 @@ app = "autonomind"
 [experimental]
   auto_rollback = true
 
+[env]
+  MIN_CONFIDENCE = "0.4"
+
 # ─────────── FastAPI ──────────────
 [[services]]
   internal_port = 8000

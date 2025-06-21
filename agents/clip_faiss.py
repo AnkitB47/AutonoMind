@@ -1,10 +1,10 @@
 """CLIP + FAISS image similarity utilities.
 
-The model and processor are loaded from the ``openai/clip-vit-base-patch32``
-repository on Hugging Face. We try to load them lazily to avoid import errors
-when ``transformers`` or ``torch`` are missing. If the direct load fails we fall
-back to the `feature-extraction` pipeline, and finally to a minimal stub that
-returns zero embeddings. This keeps the endpoint from raising 400/500 errors.
+The model and processor are loaded from the ``openai/clip-vit-base-patch32``␊
+repository on Hugging Face. We try to load them lazily to avoid import errors␊
+when ``transformers`` or ``torch`` are missing. If the direct load fails we fall␊
+back to the `feature-extraction` pipeline and raise an exception on failure so
+we never embed zero vectors silently.
 """
 
 from __future__ import annotations
@@ -46,15 +46,6 @@ _index: faiss.Index | None = None
 _meta: List[dict] = []
 
 
-class _ZeroPipeline:
-    """Last-resort stub that mimics the pipeline API."""
-
-    projection_dim = 512
-
-    def __call__(self, *_, **__):
-        return [[0.0] * self.projection_dim]
-
-
 def _load_model() -> tuple[object | None, object]:
     """Load CLIP model and processor or fallbacks."""
 
@@ -85,11 +76,8 @@ def _load_model() -> tuple[object | None, object]:
         dim = len(np.array(out)[0]) if out else 512
         _model.projection_dim = dim
         return _processor, _model
-    except Exception:
-        # Final stub returning zeros
-        _model = _ZeroPipeline()
-        _processor = None
-        return _processor, _model
+    except Exception as e:
+        raise RuntimeError(f"Failed to load CLIP model: {e}")
 
 
 def _model_dim(model: object) -> int:
