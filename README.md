@@ -12,12 +12,23 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ## Frontend configuration
 
-The frontend detects the API URL at runtime. When `NEXT_PUBLIC_FASTAPI_URL` is
-set (for example during local development) it will be used for server-side
-requests. In production you can leave this variable unset and the frontend will
-route `/api/*` requests through the Next.js server, which proxies to the local
-FastAPI instance. To explicitly point to a remote API, set
-`NEXT_PUBLIC_FASTAPI_URL` to your public RunPod proxy URL.
+The frontend reads `NEXT_PUBLIC_FASTAPI_URL` for all API requests. During
+development you can point this at your local FastAPI instance. In production it
+**must** be the public RunPod/Fly URL of your backend; otherwise the browser
+will try to call `http://localhost:8000`, which only exists on your laptop.
+When building the Docker image pass this value as a build argument and also set
+it at runtime so `next start` exposes the correct base URL.
+
+Example Fly deployment:
+
+**Do not append `:3000` to the public URL.** The Fly proxy maps
+incoming traffic on ports 80 and 443 to the container's internal port 3000,
+so your frontend is available directly at `https://your-app.fly.dev`.
+
+```bash
+fly deploy --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev \
+  -e NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev
+```
 
 When `RUNPOD_URL` is configured on the backend, heavy tasks like audio
 transcription and image OCR will be delegated to that remote pod.

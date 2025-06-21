@@ -8,6 +8,7 @@ app = "autonomind"
 
 [env]
   MIN_CONFIDENCE = "0.4"
+  NEXT_PUBLIC_FASTAPI_URL = "https://autonomind.fly.dev"
 
 # ─────────── FastAPI ──────────────
 [[services]]
@@ -24,7 +25,10 @@ app = "autonomind"
   internal_port = 3000
   protocol      = "tcp"
 
-  # Expose Next.js at port 3000
+  # Map public HTTP(S) to the container's port 3000
   [[services.ports]]
-    port     = 3000
+    port     = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port     = 443
     handlers = ["tls", "http"]
