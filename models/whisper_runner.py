@@ -1,5 +1,6 @@
 # whisper_runner.py
 import whisper
+import os
 
 model = None  # Global model reference
 
@@ -15,5 +16,11 @@ def transcribe_audio(audio_bytes):
         tmp.write(audio_bytes)
         path = tmp.name
 
-    result = model.transcribe(path)
+    try:
+        result = model.transcribe(path)
+    finally:
+        try:
+            os.remove(path)
+        except Exception:
+            pass
     return result["text"]

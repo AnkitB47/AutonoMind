@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import upload, chat, image_similarity, input_handler
+from app.routes import upload, chat, image_search, input_handler
 from app.config import Settings
 
 settings = Settings()
@@ -30,5 +30,5 @@ def ping() -> dict:
 # Register routers
 app.include_router(upload.router)
 app.include_router(chat.router)
-app.include_router(image_similarity.router)
+app.include_router(image_search.router)
 app.include_router(input_handler.router)

@@ -81,5 +81,30 @@ class EndpointStubs(unittest.TestCase):
         ans, conf, src = __import__("agents.rag_agent", fromlist=["query_pdf_image"]).query_pdf_image("q", session_id="s")
         self.assertIsInstance(ans, str)
 
+    @patch("app.routes.input_handler.chat_logic", return_value=("ok", 0.0))
+    @patch("app.routes.input_handler.is_runpod_live", return_value=False)
+    @patch("app.routes.input_handler.os.remove")
+    @patch("app.routes.input_handler.extract_image_text", return_value="txt")
+    def test_image_tempfile(self, mock_extract, mock_rm, _live, _chat):
+        res = client.post(
+            "/input/image",
+            files={"file": ("img.png", b"123", "image/png")},
+        )
+        self.assertEqual(res.status_code, 200)
+        path = mock_extract.call_args[0][0]
+        mock_rm.assert_called_with(path)
+
+    @patch("models.whisper_runner.whisper")
+    @patch("models.whisper_runner.os.remove")
+    def test_transcribe_cleanup(self, mock_rm, mock_whisper):
+        mock_whisper.load_model.return_value = type(
+            "D", (), {"transcribe": lambda self, p: {"text": "ok"}}
+        )()
+        from models.whisper_runner import transcribe_audio
+
+        text = transcribe_audio(b"123")
+        self.assertEqual(text, "ok")
+        self.assertTrue(mock_rm.called)
+
 if __name__ == "__main__":
     unittest.main()

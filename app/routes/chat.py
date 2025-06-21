@@ -1,15 +1,13 @@
 """Unified chat endpoint with multimodal fallbacks."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from uuid import uuid4
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from agents import rag_agent, search_agent, translate_agent
-from agents.rag_agent import search_clip_image
 from models.whisper_runner import transcribe_audio
 from models.gemini_vision import extract_image_text
 from agents.pod_monitor import is_runpod_live
 from app.config import Settings
+from app.schemas import ChatRequest
 import requests
 import tempfile
 import os
@@ -18,11 +16,6 @@ settings = Settings()
 RUNPOD_URL = settings.RUNPOD_URL
 
 router = APIRouter(tags=["chat"])
-
-class ChatRequest(BaseModel):
-    message: str
-    lang: str = "en"
-    session_id: str | None = None
 
 
 @router.post("/ocr")
@@ -98,51 +91,14 @@ def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float
 
 
 @router.post("/chat")
-async def chat_endpoint(request: Request, file: UploadFile | None = File(None)) -> dict:
+async def chat_endpoint(payload: ChatRequest) -> dict:
     settings.validate_api_keys()
-    if file is not None:
-        content = await file.read()
-        if not content:
-            raise HTTPException(status_code=400, detail="empty file")
-        lang = "en"
-        session_id = None
-        try:
-            form = await request.form()
-            lang = form.get("lang", "en")
-            session_id = form.get("session_id")
-        except Exception:
-            pass
-        try:
-            if file.content_type and file.content_type.startswith("image/"):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".img") as tmp:
-                    tmp.write(content)
-                    tmp_path = tmp.name
-                try:
-                    text = extract_image_text(tmp_path)
-                finally:
-                    os.remove(tmp_path)
-            elif file.content_type in {"audio/wav", "audio/webm", "audio/mpeg", "audio/x-wav"}:
-                if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
-                    res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": content})
-                    text = res.json().get("text", "")
-                else:
-                    text = transcribe_audio(content)
-            else:
-                raise HTTPException(status_code=400, detail="Unsupported file type")
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Processing failed: {e}")
-    else:
-        data = await request.json()
-        text = data.get("message")
-        if not text:
-            raise HTTPException(status_code=400, detail="message required")
-        lang = data.get("lang", "en")
-        session_id = data.get("session_id")
-
-    if not session_id:
+    if not payload.session_id:
         raise HTTPException(status_code=400, detail="session_id required")
 
-    reply, conf = chat_logic(text, lang, session_id)
-    return {"reply": reply, "confidence": conf, "session_id": session_id}
+    reply, conf = chat_logic(payload.message, payload.lang, payload.session_id)
+    return {
+        "reply": reply,
+        "confidence": conf,
+        "session_id": payload.session_id,
+    }

@@ -5,8 +5,8 @@ from agents.clip_faiss import search_text, search_image
 router = APIRouter(prefix="/search", tags=["search"])
 
 
-@router.post("/image-similarity")
-async def image_similarity(
+@router.post("/image")
+async def image_search(
     text: str | None = Form(None),
     file: UploadFile | None = File(None),
     session_id: str | None = Form(None),
