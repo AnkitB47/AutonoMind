@@ -9,15 +9,36 @@ Make sure you launch the FastAPI application from `app/main.py` so that all rout
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+The server exposes a `/ping` endpoint for simple health checks.
 
 ## Frontend configuration
 
-The frontend reads `NEXT_PUBLIC_FASTAPI_URL` for all API requests. During
+The frontend reads `NEXT_PUBLIC_FASTAPI_URL` for all API requests. In
 development you can point this at your local FastAPI instance. In production it
 **must** be the public RunPod/Fly URL of your backend; otherwise the browser
-will try to call `http://localhost:8000`, which only exists on your laptop.
-When building the Docker image pass this value as a build argument and also set
-it at runtime so `next start` exposes the correct base URL.
+will try to call `http://localhost:8000`.
+
+All calls go through the `/api` path which Next.js rewrites to
+`NEXT_PUBLIC_FASTAPI_URL` at runtime. When building the Docker image pass this
+value as a build argument and also set it at runtime so `next start` exposes the
+correct base URL.
+
+Example Fly deployment:
+
+**Do not append `:3000` to the public URL.** The Fly proxy maps
+incoming traffic on ports 80 and 443 to the container's internal port 3000,
+so your frontend is available directly at `https://your-app.fly.dev`.
+
+```bash
+fly deploy --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev \
+  -e NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev
+```
+
+When `RUNPOD_URL` is configured on the backend, heavy tasks like audio
+transcription and image OCR will be delegated to that remote pod.
+
+The container exposes `/ping` on port 8000 which can be used for health checks
+before starting the frontend.
 
 Example Fly deployment:
 

@@ -3,15 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
 
   async rewrites() {
-    // In development we proxy /api/* to the local FastAPI instance.
-    const fastapi = process.env.NEXT_PUBLIC_FASTAPI_URL;
-    if (fastapi && !fastapi.includes('localhost')) {
-      return [];
-    }
+    const base = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/:path*',
+        destination: `${base}/:path*`,
       },
     ];
   }

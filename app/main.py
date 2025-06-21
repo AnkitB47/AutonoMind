@@ -22,6 +22,11 @@ app.add_middleware(
 def root() -> dict:
     return {"message": "AutonoMind backend running"}
 
+# Lightweight ping for health checks
+@app.get("/ping")
+def ping() -> dict:
+    return {"status": "ok"}
+
 # Register routers
 app.include_router(upload.router)
 app.include_router(chat.router)
