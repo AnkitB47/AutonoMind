@@ -4,12 +4,12 @@ app = "autonomind"
   dockerfile = "docker/Dockerfile.cpu"
   args = { NEXT_PUBLIC_FASTAPI_URL = "https://autonomind.fly.dev", MIN_CONFIDENCE = "0.4" }
 
-[experimental]
-  auto_rollback = true
-
 [env]
   MIN_CONFIDENCE = "0.4"
   NEXT_PUBLIC_FASTAPI_URL = "https://autonomind.fly.dev"
+
+[experimental]
+  auto_rollback = true
 
 # ─────────── FastAPI ──────────────
 [[services]]
