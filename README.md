@@ -18,6 +18,10 @@ development you can point this at your local FastAPI instance. In production it
 **must** be the public RunPod/Fly URL of your backend; otherwise the browser
 will try to call `http://localhost:8000`.
 
+In production the backend also checks that either `RUNPOD_URL` or
+`NEXT_PUBLIC_FASTAPI_URL` is configured. If neither is set the server will fail
+to start.
+
 All calls go through the `/api` path which Next.js rewrites to
 `NEXT_PUBLIC_FASTAPI_URL` at runtime. When building the Docker image pass this
 value as a build argument and also set it at runtime so `next start` exposes the

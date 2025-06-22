@@ -81,13 +81,14 @@ class EndpointStubs(unittest.TestCase):
         ans, conf, src = __import__("agents.rag_agent", fromlist=["query_pdf_image"]).query_pdf_image("q", session_id="s")
         self.assertIsInstance(ans, str)
 
-    @patch("app.routes.input_handler.chat_logic", return_value=("ok", 0.0))
+    @patch("app.routes.input_handler.chat_logic", return_value=("ok", 0.0, None))
     @patch("app.routes.input_handler.is_runpod_live", return_value=False)
     @patch("app.routes.input_handler.os.remove")
     @patch("app.routes.input_handler.extract_image_text", return_value="txt")
     def test_image_tempfile(self, mock_extract, mock_rm, _live, _chat):
         res = client.post(
             "/input/image",
+            data={"lang": "en", "session_id": "sid"},
             files={"file": ("img.png", b"123", "image/png")},
         )
         self.assertEqual(res.status_code, 200)

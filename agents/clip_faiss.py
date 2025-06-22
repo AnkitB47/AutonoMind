@@ -204,12 +204,17 @@ def search_text(text: str, namespace: str = "image", k: int = 5):
         import torch
 
         if processor is not None and hasattr(model, "get_text_features"):
+            # Truncate to CLIP's 77 token limit
+            if hasattr(processor, "tokenizer"):
+                ids = processor.tokenizer(text)["input_ids"][0][:77]
+                text = processor.tokenizer.decode(ids, skip_special_tokens=True)
             inputs = processor(text=[text], return_tensors="pt")
             with torch.no_grad():
                 text_emb = model.get_text_features(**inputs)
                 text_emb = torch.nn.functional.normalize(text_emb, p=2, dim=-1)
             vec = text_emb[0].cpu().numpy().astype("float32")
         else:  # pipeline
+            text = " ".join(text.split()[:77])
             out = model(text)
             arr = np.asarray(out)[0]
             if arr.ndim > 1:

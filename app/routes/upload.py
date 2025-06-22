@@ -12,8 +12,13 @@ async def upload_file(
     session_id: str | None = Form(None),
 ) -> dict:
     """Ingest a file and return the session id used."""
-    settings.validate_api_keys()
-    msg, sid = await process_file(file, session_id=session_id)
-    if not msg.startswith("✅"):
-        raise HTTPException(status_code=400, detail=msg)
-    return {"message": msg, "session_id": sid}
+    try:
+        settings.validate_api_keys()
+        msg, sid = await process_file(file, session_id=session_id)
+        if not msg.startswith("✅"):
+            raise HTTPException(status_code=400, detail=msg)
+        return {"message": msg, "session_id": sid}
+    except HTTPException as exc:
+        raise exc
+    except Exception as e:  # pragma: no cover - defensive
+        return {"error": str(e)}

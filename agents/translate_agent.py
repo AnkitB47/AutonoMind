@@ -8,6 +8,10 @@ def translate_response(text: str, target_lang: str) -> str:
     if target_lang.lower() == "en":
         return text
 
+    # Prevent context overflow on long responses
+    if len(text) > 4000:
+        text = text[:4000]
+
     prompt = PromptTemplate.from_template("Translate this to {lang}: {text}")
     chain = LLMChain(llm=OpenAI(), prompt=prompt)
 

@@ -20,32 +20,40 @@ router = APIRouter(tags=["chat"])
 
 @router.post("/ocr")
 async def ocr_image(file: UploadFile = File(...)) -> dict:
-    settings.validate_api_keys()
-    data = await file.read()
-    if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
-        res = requests.post(f"{RUNPOD_URL}/vision", files={"file": data})
-        text = res.json().get("text", "")
-    else:
-        with tempfile.NamedTemporaryFile(suffix=".img", delete=False) as tmp:
-            tmp.write(data)
-            tmp_path = tmp.name
-        try:
-            text = extract_image_text(tmp_path)
-        finally:
-            os.remove(tmp_path)
-    return {"text": text}
+    """Run OCR on the uploaded image using Gemini Vision."""
+    try:
+        settings.validate_api_keys()
+        data = await file.read()
+        if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
+            res = requests.post(f"{RUNPOD_URL}/vision", files={"file": data})
+            text = res.json().get("text", "")
+        else:
+            with tempfile.NamedTemporaryFile(suffix=".img", delete=False) as tmp:
+                tmp.write(data)
+                tmp_path = tmp.name
+            try:
+                text = extract_image_text(tmp_path)
+            finally:
+                os.remove(tmp_path)
+        return {"text": text}
+    except Exception as e:  # pragma: no cover - defensive
+        return {"error": str(e)}
 
 
 @router.post("/transcribe")
 async def transcribe(file: UploadFile = File(...)) -> dict:
-    settings.validate_api_keys()
-    data = await file.read()
-    if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
-        res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": data})
-        text = res.json().get("text", "")
-    else:
-        text = transcribe_audio(data)
-    return {"text": text}
+    """Transcribe an uploaded audio file."""
+    try:
+        settings.validate_api_keys()
+        data = await file.read()
+        if RUNPOD_URL and is_runpod_live(RUNPOD_URL):
+            res = requests.post(f"{RUNPOD_URL}/transcribe", files={"file": data})
+            text = res.json().get("text", "")
+        else:
+            text = transcribe_audio(data)
+        return {"text": text}
+    except Exception as e:  # pragma: no cover - defensive
+        return {"error": str(e)}
 
 
 def _fallback_search(text: str) -> str:
@@ -69,36 +77,43 @@ def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float
     except Exception:
         ans, conf, src = "", 0.0, None
 
+    if src == "image":
+        rag_agent.save_memory(text, ans, session_id=session_id)
+        return ans, conf, src
+
     if conf < settings.MIN_RAG_CONFIDENCE:
         ans = _fallback_search(text)
         conf = 0.0
         src = None
 
     rag_agent.save_memory(text, ans, session_id=session_id)
-    if src == "image":
-        translated = ans
-    else:
-        translated = translate_agent.translate_response(ans, lang)
+    translated = translate_agent.translate_response(ans, lang)
     return translated, conf, src
 
 
 @router.post("/chat")
 async def chat_endpoint(payload: ChatRequest) -> dict:
-    settings.validate_api_keys()
-    if not payload.session_id:
-        raise HTTPException(status_code=400, detail="session_id required")
+    try:
+        settings.validate_api_keys()
+        if not payload.session_id:
+            raise HTTPException(status_code=400, detail="session_id required")
 
-    reply, conf, src = chat_logic(
-        payload.message, payload.lang, payload.session_id
-    )
-    if src == "image":
+        reply, conf, src = chat_logic(
+            payload.message, payload.lang, payload.session_id
+        )
+        if src == "image":
+            return {
+                "image_url": reply,
+                "confidence": conf,
+                "session_id": payload.session_id,
+            }
         return {
-            "image_url": reply,
+            "reply": reply,
             "confidence": conf,
             "session_id": payload.session_id,
         }
-    return {
-        "reply": reply,
-        "confidence": conf,
-        "session_id": payload.session_id,
-    }
+    except HTTPException as exc:
+        # Re-raise HTTPExceptions to preserve status
+        raise exc
+    except Exception as e:  # pragma: no cover - defensive
+        return {"error": str(e)}

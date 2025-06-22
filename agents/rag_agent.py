@@ -12,6 +12,7 @@ import time
 
 from cachetools import TTLCache
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from agents import search_agent
 from app.config import Settings
 
@@ -70,35 +71,23 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
     if suffix == "pdf":
         loader = PyPDFLoader(path)
         docs = loader.load()
-        text_pages = [d.page_content for d in docs]
-        text = "\n".join(text_pages)
-        if not text.strip():
-            try:
-                import fitz
-                doc = fitz.open(path)
-                ocr_parts = []
-                for page in doc:
-                    pix = page.get_pixmap()
-                    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as img_tmp:
-                        pix.save(img_tmp.name)
-                        page_text = extract_image_text(img_tmp.name)
-                    os.remove(img_tmp.name)
-                    ocr_parts.append(page_text)
-                text = "\n".join(ocr_parts)
-            except Exception:
-                text = ""
-        for page in text_pages:
-            ingest_pdf_to_pinecone(page, namespace=_session_ns("pdf", sid))
-            ingest_text_to_faiss(page, namespace=_session_ns("pdf", sid))
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+        chunks: list[str] = []
+        for d in docs:
+            chunks.extend(splitter.split_text(d.page_content))
+        text = "\n".join(chunks)
+        for chunk in chunks:
+            ingest_pdf_to_pinecone(chunk, namespace=_session_ns("pdf", sid))
+            ingest_text_to_faiss(chunk, namespace=_session_ns("pdf", sid))
         msg = "✅ PDF ingested"
         meta = {"type": "pdf", "text": text, "timestamp": time.time()}
         success = True
     elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
         text = extract_image_text(path)
         ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
-        ingest_clip_image(path, namespace=_session_ns("image", sid))
+        stored_path = ingest_clip_image(path, namespace=_session_ns("image", sid))
         msg = "✅ Image ingested"
-        meta = {"type": "image", "text": text, "timestamp": time.time()}
+        meta = {"type": "image", "text": text, "path": stored_path, "timestamp": time.time()}
         success = True
     else:
         if os.path.exists(path):
@@ -115,35 +104,37 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
     def _norm(x: float) -> float:
         return max(0.0, min(1.0, x))
 
-    best_answer = ""
-    best_conf = 0.0
-    best_src: str | None = None
+    ranked: list[tuple[str, float, str]] = []
 
-    # Pinecone search for PDFs only
-    for ns in ("pdf",):
-        ans, raw_conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid), k=3)
-        conf = _norm(raw_conf)
-        if conf > best_conf:
-            best_answer, best_conf, best_src = _clean(ans or ""), conf, ns
+    # gather pdf results from both stores
+    for func in (search_pinecone_with_score, search_faiss_with_score):
+        ans, raw_conf = func(text, namespace=_session_ns("pdf", sid), k=3)
+        if ans:
+            ranked.append((_clean(ans), _norm(raw_conf), "pdf"))
 
-    # FAISS PDF and image (and memory if requested)
-    for ns in ["pdf", "image"] + (["memory"] if include_memory else []):
-        cand, raw_c = search_faiss_with_score(text, namespace=_session_ns(ns, sid), k=3)
-        c = _norm(raw_c)
-        if c > best_conf:
-            best_answer, best_conf, best_src = _clean(cand or ""), c, ns
+    # image and optional memory namespaces via FAISS
+    for ns in ["image"] + (["memory"] if include_memory else []):
+        ans, raw_conf = search_faiss_with_score(text, namespace=_session_ns(ns, sid), k=3)
+        if ans:
+            ranked.append((_clean(ans), _norm(raw_conf), ns))
 
-    # CLIP fallback if confidence is low
-    if best_conf < settings.MIN_RAG_CONFIDENCE:
-        matches = search_images(text, namespace=_session_ns("image", sid), k=5)
-        if matches:
-            best_answer = matches[0]["url"]
-            best_conf = _norm(matches[0]["score"])
-            best_src = "image"
+    # CLIP fallback always considered
+    matches = search_images(text, namespace=_session_ns("image", sid), k=1)
+    if matches:
+        match = matches[0]
+        ranked.append((match["url"], _norm(match.get("score", 0.0)), "image"))
 
-    if not best_answer:
+    if not ranked:
         return "No match found", 0.0, None
-    return best_answer, best_conf, best_src
+
+    ranked.sort(key=lambda x: x[1], reverse=True)
+    best_ans, best_conf, best_src = ranked[0]
+
+    if best_src == "pdf":
+        excerpts = [text for text, _, src in ranked if src == "pdf"][:3]
+        best_ans = "\n".join(excerpts)
+
+    return best_ans, best_conf, best_src
 
 
 def query_pdf_image(text: str, session_id: str | None = None) -> tuple[str, float, str | None]:

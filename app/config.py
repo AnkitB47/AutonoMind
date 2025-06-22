@@ -28,29 +28,30 @@ class Settings:
         default_image_store = os.path.join(repo_root, "vectorstore", "image_store")
         self.IMAGE_STORE = os.getenv("IMAGE_STORE", default_image_store)
 
-        # Optional values
         self.RUNPOD_URL  = os.getenv("RUNPOD_URL", "")
+        self.NEXT_PUBLIC_FASTAPI_URL = os.getenv("NEXT_PUBLIC_FASTAPI_URL", "")
         self.USE_GPU     = os.getenv("USE_GPU", "False").lower() == "true"
 
-        # Safely parse MIN_CONFIDENCE, falling back to 0.6 if missing or empty
+        if self.env == "production" and not (self.RUNPOD_URL or self.NEXT_PUBLIC_FASTAPI_URL):
+            raise EnvironmentError("RUNPOD_URL or NEXT_PUBLIC_FASTAPI_URL must be set in production")
+
+        # Safely parse MIN_CONFIDENCE, falling back to 0.4 if missing or empty
         raw = os.getenv("MIN_CONFIDENCE")
-        if raw is None or raw.strip() == "":
-            self.MIN_RAG_CONFIDENCE = 0.6
-        else:
-            try:
-                self.MIN_RAG_CONFIDENCE = float(raw)
-            except ValueError:
+        try:
+            self.MIN_RAG_CONFIDENCE = float(raw) if raw and raw.strip() else 0.4
+        except ValueError:
+            if self.env == "production":
                 raise RuntimeError(f"Invalid MIN_CONFIDENCE: {raw!r}")
+            self.MIN_RAG_CONFIDENCE = 0.4
 
         # CLIP threshold
         raw_clip = os.getenv("CLIP_MIN_CONFIDENCE")
-        if raw_clip is None or raw_clip.strip() == "":
-            self.MIN_CLIP_CONFIDENCE = 0.4
-        else:
-            try:
-                self.MIN_CLIP_CONFIDENCE = float(raw_clip)
-            except ValueError:
+        try:
+            self.MIN_CLIP_CONFIDENCE = float(raw_clip) if raw_clip and raw_clip.strip() else 0.4
+        except ValueError:
+            if self.env == "production":
                 raise RuntimeError(f"Invalid CLIP_MIN_CONFIDENCE: {raw_clip!r}")
+            self.MIN_CLIP_CONFIDENCE = 0.4
 
     def _get(self, key: str) -> str:
         value = os.getenv(key)
