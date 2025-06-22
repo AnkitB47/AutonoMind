@@ -17,7 +17,7 @@ from app.config import Settings
 
 settings = Settings()
 
-from models.gemini_vision import extract_image_text
+from models.gemini_vision import extract_image_text, summarize_text_gemini
 from agents.clip_faiss import (
     ingest_image as ingest_clip_image,
     search_text as search_images,
@@ -38,6 +38,7 @@ __all__ = [
     "save_memory",
     "load_memory",
     "search_clip_image",
+    "rewrite_answer",
 ]
 
 # Session caches
@@ -69,7 +70,8 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
     if suffix == "pdf":
         loader = PyPDFLoader(path)
         docs = loader.load()
-        text = "\n".join(p.page_content for p in docs)
+        text_pages = [d.page_content for d in docs]
+        text = "\n".join(text_pages)
         if not text.strip():
             try:
                 import fitz
@@ -85,8 +87,9 @@ async def process_file(file, session_id: str | None = None) -> tuple[str, str]:
                 text = "\n".join(ocr_parts)
             except Exception:
                 text = ""
-        ingest_pdf_to_pinecone(text, namespace=_session_ns("pdf", sid))
-        ingest_text_to_faiss(text, namespace=_session_ns("pdf", sid))
+        for page in text_pages:
+            ingest_pdf_to_pinecone(page, namespace=_session_ns("pdf", sid))
+            ingest_text_to_faiss(page, namespace=_session_ns("pdf", sid))
         msg = "✅ PDF ingested"
         meta = {"type": "pdf", "text": text, "timestamp": time.time()}
         success = True
@@ -118,19 +121,19 @@ def _search_all(text: str, sid: str | None, include_memory: bool) -> tuple[str, 
 
     # Pinecone search for PDFs only
     for ns in ("pdf",):
-        ans, raw_conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid))
+        ans, raw_conf = search_pinecone_with_score(text, namespace=_session_ns(ns, sid), k=3)
         conf = _norm(raw_conf)
         if conf > best_conf:
             best_answer, best_conf, best_src = _clean(ans or ""), conf, ns
 
     # FAISS PDF and image (and memory if requested)
     for ns in ["pdf", "image"] + (["memory"] if include_memory else []):
-        cand, raw_c = search_faiss_with_score(text, namespace=_session_ns(ns, sid))
+        cand, raw_c = search_faiss_with_score(text, namespace=_session_ns(ns, sid), k=3)
         c = _norm(raw_c)
         if c > best_conf:
             best_answer, best_conf, best_src = _clean(cand or ""), c, ns
 
-    # CLIP fallback if confidence is low␊
+    # CLIP fallback if confidence is low
     if best_conf < settings.MIN_RAG_CONFIDENCE:
         matches = search_images(text, namespace=_session_ns("image", sid), k=5)
         if matches:
@@ -179,6 +182,24 @@ def load_memory(session_id: str | None, limit: int = 5) -> list[str]:
     if not session_id:
         return []
     return memory_cache.get(session_id, [])[-limit:]
+
+
+def rewrite_answer(excerpts: str, question: str, lang: str) -> str:
+    """Rewrite raw document excerpts into a concise answer."""
+    prompt = (
+        f"You are a friendly assistant. The user asked: '{question}'.\n"
+        f"Here are the most relevant excerpts:\n{excerpts}\n"
+        f"Please answer in {lang} in a concise, conversational style."
+    )
+    try:
+        return summarize_text_gemini(excerpts, question)
+    except Exception:
+        try:
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(temperature=0.2)
+            return llm.predict(prompt)
+        except Exception as e:
+            return f"⚠️ LLM failed: {e}\n\n{excerpts}"
 
 
 def handle_text(text: str, namespace: str | None = None, session_id: str | None = None) -> str:

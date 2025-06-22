@@ -12,7 +12,7 @@ settings = Settings()
 # path retained for backward compatibility
 FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
 # Use slightly larger chunks with overlap for better contextual retrieval
-splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 
 def ingest_text_to_faiss(text: str, namespace: str = None):
     """Embed ``text`` and persist to the FAISS index.

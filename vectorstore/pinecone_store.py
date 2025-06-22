@@ -21,7 +21,7 @@ index_name = settings.PINECONE_INDEX_NAME
 default_namespace = os.getenv("PINECONE_NAMESPACE", "default")
 embedding_model = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
 # Match FAISS chunk strategy for consistency
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=200)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 
 
 def search_pinecone(query, namespace=None):
@@ -39,20 +39,22 @@ def search_pinecone(query, namespace=None):
     return best_doc.page_content.strip()
 
 
-def search_pinecone_with_score(query, namespace=None):
-    """Return best matching text and confidence score from Pinecone."""
+def search_pinecone_with_score(query, namespace=None, k: int = 3):
+    """Return concatenated top ``k`` texts and confidence score from Pinecone."""
     vectorstore = PineconeVectorStore.from_existing_index(
         index_name=index_name,
         embedding=embedding_model,
         namespace=namespace or default_namespace
     )
-    docs_and_scores = vectorstore.similarity_search_with_score(query, k=5)
+    docs_and_scores = vectorstore.similarity_search_with_score(query, k=k)
     if not docs_and_scores:
         return None, 0.0
 
-    best_doc, best_score = min(docs_and_scores, key=lambda x: x[1])
+    # Assume results are ordered by similarity (lower score is better)
+    top_text = "\n".join(doc.page_content for doc, _ in docs_and_scores[:k])
+    best_score = docs_and_scores[0][1]
     confidence = 1 / (1 + best_score)
-    return best_doc.page_content.strip(), confidence
+    return top_text.strip(), confidence
 
 
 def upsert_document(text, namespace=None, metadata=None):

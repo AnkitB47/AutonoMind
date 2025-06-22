@@ -82,35 +82,36 @@ def add_texts(texts: List[str], namespace: Optional[str] = None) -> None:
     _save()
 
 
-def _search_vec(vec: np.ndarray, namespace: Optional[str], k: int = 50) -> Tuple[Optional[str], float]:
+def _search_vec(vec: np.ndarray, namespace: Optional[str], k: int = 3, window: int = 50) -> List[Tuple[str, float]]:
+    """Return top ``k`` texts with scores filtered by namespace."""
     _load()
     if _index.ntotal == 0:
-        return None, 0.0
-    # search a larger window then filter by namespace to avoid missing hits
-    D, I = _index.search(vec[np.newaxis, :], min(k, _index.ntotal))
-    best_text = None
-    best_score = -1.0
+        return []
+    D, I = _index.search(vec[np.newaxis, :], min(window, _index.ntotal))
+    results: List[Tuple[str, float]] = []
     for idx, score in zip(I[0], D[0]):
         if idx == -1:
             continue
         meta = _meta[idx]
         if namespace and meta.get("source") != namespace:
             continue
-        if score > best_score:
-            best_text = meta.get("text", "")
-            best_score = float(score)
-    if best_text is None:
+        results.append((meta.get("text", ""), float(score)))
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results[:k]
+
+
+def search_faiss(query: str, namespace: Optional[str] = None, k: int = 3) -> str:
+    vec = np.array(_embed_query(query), dtype="float32")
+    results = _search_vec(vec, namespace, k=k)
+    if not results:
+        return "No FAISS match found"
+    return "\n".join(t for t, _ in results).strip()
+
+
+def search_faiss_with_score(query: str, namespace: Optional[str] = None, k: int = 3) -> Tuple[Optional[str], float]:
+    vec = np.array(_embed_query(query), dtype="float32")
+    results = _search_vec(vec, namespace, k=k)
+    if not results:
         return None, 0.0
-    return best_text, best_score
-
-
-def search_faiss(query: str, namespace: Optional[str] = None) -> str:
-    vec = np.array(_embed_query(query), dtype="float32")
-    text, _ = _search_vec(vec, namespace, k=50)
-    return text.strip() if text else "No FAISS match found"
-
-
-def search_faiss_with_score(query: str, namespace: Optional[str] = None) -> Tuple[Optional[str], float]:
-    vec = np.array(_embed_query(query), dtype="float32")
-    text, score = _search_vec(vec, namespace, k=50)
-    return (text.strip(), score) if text else (None, 0.0)
+    best_text, best_score = results[0]
+    return best_text.strip(), best_score

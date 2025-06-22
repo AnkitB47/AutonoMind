@@ -66,6 +66,11 @@ def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float
         ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
     except Exception:
         ans, conf, src = "", 0.0, None
+    if src in {"pdf", "image"} and conf >= settings.MIN_RAG_CONFIDENCE:
+        ans = rag_agent.rewrite_answer(ans, text, lang)
+        rag_agent.save_memory(text, ans, session_id=session_id)
+        translated = translate_agent.translate_response(ans, lang)
+        return translated, conf
     if conf >= settings.MIN_CLIP_CONFIDENCE and src == "image":
         rag_agent.save_memory(text, ans, session_id=session_id)
         translated = translate_agent.translate_response(ans, lang)
