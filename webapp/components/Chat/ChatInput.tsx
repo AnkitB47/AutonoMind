@@ -6,15 +6,14 @@ import { Button } from '../Shared/Button';
 import useSpeechRecognition from '../../hooks/useSpeechRecognition';
 
 export default function ChatInput() {
-  const { mode, sendUserInput, setMode } = useContext(ChatContext);
+  const { mode, sendUserInput, uploadFile, setMode } = useContext(ChatContext);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const { start, stop, isRecording } = useSpeechRecognition();
 
   const handleSend = () => {
     if (mode === 'image' && file) {
-      sendUserInput(file);
-      setMode('text');
+      uploadFile(file);
       setFile(null);
       return;
     }

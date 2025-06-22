@@ -13,12 +13,12 @@ export async function sendChat(
   const { sessionId } = opts;
 
   if (mode === 'text') {
-    const { data } = await fastApi.post('/input/text', {
-      query: input,
+    const { data } = await fastApi.post('/chat', {
+      message: input,
       lang,
       session_id: sessionId
     });
-    return data.response || '...';
+    return data as { reply?: string; image_url?: string; confidence?: number; session_id: string };
   }
 
   if (mode === 'search') {
@@ -27,8 +27,9 @@ export async function sendChat(
       lang,
       session_id: sessionId
     });
-    return data.response || '...';
+    return { reply: data.response || '...' };
   }
+
 
   const form = new FormData();
   form.append('file', input);
@@ -37,12 +38,12 @@ export async function sendChat(
 
   if (mode === 'voice') {
     const { data } = await fastApi.post('/input/voice', form);
-    return data.response || '...';
+    return { reply: data.response || '...' };
   }
 
   if (mode === 'image') {
     const { data } = await fastApi.post('/upload', form);
-    return (data.message || 'uploaded') as string;
+    return { reply: data.message || 'uploaded', session_id: data.session_id };
   }
 }
 

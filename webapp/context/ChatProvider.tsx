@@ -1,12 +1,13 @@
 'use client';
 import { createContext, useState, ReactNode } from 'react';
-import { sendChat } from '../services/chatService';
+import { sendChat, uploadFile as uploadFileSvc } from '../services/chatService';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
 export interface Message {
   role: 'user' | 'bot';
   content: string;
+  imageUrl?: string;
 }
 
 interface ChatCtx {
@@ -20,6 +21,7 @@ interface ChatCtx {
   sessionId: string;
   setSessionId: (id: string) => void;
   sendUserInput: (value: string | File | Blob) => void;
+  uploadFile: (file: File) => void;
   clearMessages: () => void;
 }
 
@@ -41,8 +43,30 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const reply = await sendChat(input as any, mode, language, { sessionId });
-      setMessages((m) => [...m, { role: 'bot', content: reply }]);
+      const res = await sendChat(input as any, mode, language, { sessionId });
+      if (res.session_id) setSessionId(res.session_id);
+      if ('image_url' in res && res.image_url) {
+        setMessages((m) => [...m, { role: 'bot', content: '', imageUrl: res.image_url }]);
+      } else {
+        const text = 'reply' in res ? res.reply : String(res);
+        setMessages((m) => [...m, { role: 'bot', content: text }]);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadFile = async (file: File) => {
+    setMessages((m) => [...m, { role: 'user', content: '[file]' }]);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await uploadFileSvc(file, language, { sessionId });
+      if (res.session_id) setSessionId(res.session_id);
+      setMessages((m) => [...m, { role: 'bot', content: res.message }]);
+      setMode('text');
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -64,6 +88,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         sessionId,
         setSessionId,
         sendUserInput,
+        uploadFile,
         clearMessages,
       }}
     >
