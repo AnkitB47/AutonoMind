@@ -8,10 +8,12 @@ settings = Settings()
 
 @router.post("/upload")
 async def upload_file(
-    session_id: str = Form(...), file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    session_id: str | None = Form(None),
 ) -> dict:
+    """Ingest a file and return the session id used."""
     settings.validate_api_keys()
-    msg, _ = await process_file(file, session_id=session_id)
+    msg, sid = await process_file(file, session_id=session_id)
     if not msg.startswith("✅"):
         raise HTTPException(status_code=400, detail=msg)
-    return {"message": msg, "session_id": session_id}
+    return {"message": msg, "session_id": sid}

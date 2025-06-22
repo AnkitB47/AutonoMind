@@ -106,5 +106,12 @@ class EndpointStubs(unittest.TestCase):
         self.assertEqual(text, "ok")
         self.assertTrue(mock_rm.called)
 
+    @patch("app.routes.upload.process_file", return_value=("✅ uploaded", "sid"))
+    def test_upload_generates_session(self, mock_pf):
+        res = client.post("/upload", files={"file": ("t.txt", b"1")})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["session_id"], "sid")
+
 if __name__ == "__main__":
     unittest.main()
