@@ -113,5 +113,7 @@ def search_faiss_with_score(query: str, namespace: Optional[str] = None, k: int 
     results = _search_vec(vec, namespace, k=k)
     if not results:
         return None, 0.0
-    best_text, best_score = results[0]
-    return best_text.strip(), best_score
+    top_text = "\n".join(t for t, _ in results[:k])
+    best_score = results[0][1]
+    confidence = 1 / (1 + best_score)
+    return top_text.strip(), confidence

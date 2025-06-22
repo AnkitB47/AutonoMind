@@ -75,5 +75,18 @@ class TestFaissIngest(unittest.TestCase):
         result = self.fs.search_faiss("hello", namespace="image")
         self.assertIn("hello world", result)
 
+    def test_search_with_score_concat_and_confidence(self):
+        """search_faiss_with_score should join top k chunks and normalize score."""
+        self.fs._search_vec = MagicMock(
+            return_value=[
+                ("chunk1", 0.2),
+                ("chunk2", 0.3),
+                ("chunk3", 0.4),
+            ]
+        )
+        text, conf = self.fs.search_faiss_with_score("q", namespace="n", k=3)
+        self.assertEqual(text, "chunk1\nchunk2\nchunk3")
+        self.assertAlmostEqual(conf, 1 / (1 + 0.2))
+
 if __name__ == "__main__":
     unittest.main()
