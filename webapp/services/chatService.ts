@@ -4,32 +4,36 @@ interface SessionOpts {
   sessionId?: string;
 }
 
+export type ChatResponse = {
+  reply?: string;
+  image_url?: string;
+  confidence?: number;
+  session_id?: string;
+};
+
 export async function sendChat(
   input: string | Blob | File,
   mode: 'text' | 'voice' | 'image' | 'search',
   lang: string,
   opts: SessionOpts = {}
-) {
+): Promise<ChatResponse> {
   const { sessionId } = opts;
 
   if (mode === 'text') {
     const { data } = await fastApi.post('/chat', {
       message: input,
       lang,
-      session_id: sessionId
+      session_id: sessionId,
     });
-    return data as { reply?: string; image_url?: string; confidence?: number; session_id: string };
-  }
-
-  if (mode === 'search') {
+    return data as ChatResponse;
+  } else if (mode === 'search') {
     const { data } = await fastApi.post('/input/search', {
       query: input,
       lang,
-      session_id: sessionId
+      session_id: sessionId,
     });
     return { reply: data.response || '...' };
   }
-
 
   const form = new FormData();
   form.append('file', input);
@@ -39,12 +43,12 @@ export async function sendChat(
   if (mode === 'voice') {
     const { data } = await fastApi.post('/input/voice', form);
     return { reply: data.response || '...' };
-  }
-
-  if (mode === 'image') {
+  } else if (mode === 'image') {
     const { data } = await fastApi.post('/upload', form);
     return { reply: data.message || 'uploaded', session_id: data.session_id };
   }
+
+  throw new Error(`Unsupported mode: ${mode}`);
 }
 
 

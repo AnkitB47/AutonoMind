@@ -88,10 +88,17 @@ async def chat_endpoint(payload: ChatRequest) -> dict:
     if not payload.session_id:
         raise HTTPException(status_code=400, detail="session_id required")
 
-    reply, conf, src = chat_logic(payload.message, payload.lang, payload.session_id)
-    out = {"confidence": conf, "session_id": payload.session_id}
+    reply, conf, src = chat_logic(
+        payload.message, payload.lang, payload.session_id
+    )
     if src == "image":
-        out["image_url"] = reply
-    else:
-        out["reply"] = reply
-    return out
+        return {
+            "image_url": reply,
+            "confidence": conf,
+            "session_id": payload.session_id,
+        }
+    return {
+        "reply": reply,
+        "confidence": conf,
+        "session_id": payload.session_id,
+    }

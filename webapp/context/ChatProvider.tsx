@@ -43,12 +43,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await sendChat(input as any, mode, language, { sessionId });
+      const res = await sendChat(input as any, mode, language, {
+        sessionId,
+      });
+      if (!res) return;
       if (res.session_id) setSessionId(res.session_id);
       if ('image_url' in res && res.image_url) {
         setMessages((m) => [...m, { role: 'bot', content: '', imageUrl: res.image_url }]);
       } else {
-        const text = 'reply' in res ? res.reply : String(res);
+        const text =
+          'reply' in res && typeof res.reply === 'string'
+            ? res.reply
+            : String(res);
         setMessages((m) => [...m, { role: 'bot', content: text }]);
       }
     } catch (err) {
