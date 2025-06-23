@@ -10,6 +10,10 @@ if [ -z "$NEXT_PUBLIC_FASTAPI_URL" ] && [ -n "$RUNPOD_URL" ]; then
   export NEXT_PUBLIC_FASTAPI_URL="$RUNPOD_URL"
 fi
 
+# Expose runtime URL to the frontend via public/env.js
+mkdir -p webapp/public
+echo "window.RUNTIME_FASTAPI_URL='${NEXT_PUBLIC_FASTAPI_URL}'" > webapp/public/env.js
+
 uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 PID=$!
 for i in {1..20}; do
