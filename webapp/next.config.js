@@ -3,13 +3,15 @@ const nextConfig = {
   reactStrictMode: true,
 
   async rewrites() {
-    const base = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${base}/:path*`,
-      },
-    ];
+    if (process.env.NODE_ENV !== 'production') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:8000/:path*',
+        },
+      ];
+    }
+    return [];
   }
 };
 

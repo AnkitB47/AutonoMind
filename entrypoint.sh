@@ -1,18 +1,17 @@
 #!/bin/bash
 set -e
 
-# Auto-construct the RunPod proxy URL when RUNPOD_POD_ID is provided
-if [ -z "$RUNPOD_URL" ] && [ -n "$RUNPOD_POD_ID" ]; then
+# Build the proxy URL from the pod id when running on RunPod
+if [ -n "$RUNPOD_POD_ID" ]; then
   export RUNPOD_URL="https://${RUNPOD_POD_ID}-8000.proxy.runpod.net"
-fi
-# Also default NEXT_PUBLIC_FASTAPI_URL to RUNPOD_URL if missing
-if [ -z "$NEXT_PUBLIC_FASTAPI_URL" ] && [ -n "$RUNPOD_URL" ]; then
-  export NEXT_PUBLIC_FASTAPI_URL="$RUNPOD_URL"
+  # Allow SSR to reuse this value
+  export NEXT_PUBLIC_FASTAPI_URL="${NEXT_PUBLIC_FASTAPI_URL:-$RUNPOD_URL}"
 fi
 
 # Expose runtime URL to the frontend via public/env.js
 mkdir -p webapp/public
-echo "window.RUNTIME_FASTAPI_URL='${NEXT_PUBLIC_FASTAPI_URL}'" > webapp/public/env.js
+chmod 755 webapp/public
+echo "window.RUNTIME_FASTAPI_URL='${RUNPOD_URL}'" > webapp/public/env.js
 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 PID=$!
