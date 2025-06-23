@@ -32,6 +32,12 @@ class Settings:
         self.NEXT_PUBLIC_FASTAPI_URL = os.getenv("NEXT_PUBLIC_FASTAPI_URL", "")
         self.USE_GPU     = os.getenv("USE_GPU", "False").lower() == "true"
 
+        # Auto-compute RunPod URL if the pod id is available
+        if not self.RUNPOD_URL:
+            pod_id = os.getenv("RUNPOD_POD_ID")
+            if pod_id:
+                self.RUNPOD_URL = f"https://{pod_id}-8000.proxy.runpod.net"
+
         if self.env == "production" and not (self.RUNPOD_URL or self.NEXT_PUBLIC_FASTAPI_URL):
             raise EnvironmentError("RUNPOD_URL or NEXT_PUBLIC_FASTAPI_URL must be set in production")
 
