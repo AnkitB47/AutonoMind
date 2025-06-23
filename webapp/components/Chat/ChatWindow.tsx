@@ -18,7 +18,15 @@ export default function ChatWindow() {
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((m, idx) => (
           <ChatBubble key={idx} isUser={m.role === 'user'}>
-            {m.content}
+            {m.imageUrl ? (
+              <img
+                src={`${process.env.NEXT_PUBLIC_FASTAPI_URL}${m.imageUrl}`}
+                alt="RAG result"
+                className="max-w-xs rounded"
+              />
+            ) : (
+              m.content
+            )}
           </ChatBubble>
         ))}
         {loading && (

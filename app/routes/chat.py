@@ -60,39 +60,26 @@ def _fallback_search(text: str) -> str:
     return "No answer found"
 
 
-def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float]:
+def chat_logic(text: str, lang: str, session_id: str | None) -> tuple[str, float, str | None]:
     """Run RAG search with fallbacks and save memory."""
+    raw = rag_agent.session_store.get(session_id, {}).get("text", "")
+    combined = f"{raw}\n\nUser question: {text}" if raw else text
     try:
-        ans, conf, src = rag_agent.query_pdf_image(text, session_id=session_id)
+        ans, conf, src = rag_agent.query_pdf_image(combined, session_id=session_id)
     except Exception:
         ans, conf, src = "", 0.0, None
-    if src in {"pdf", "image"} and conf >= settings.MIN_RAG_CONFIDENCE:
-        ans = rag_agent.rewrite_answer(ans, text, lang)
-        rag_agent.save_memory(text, ans, session_id=session_id)
-        translated = translate_agent.translate_response(ans, lang)
-        return translated, conf
-    if conf >= settings.MIN_CLIP_CONFIDENCE and src == "image":
-        rag_agent.save_memory(text, ans, session_id=session_id)
-        translated = translate_agent.translate_response(ans, lang)
-        return translated, conf
-    if conf < settings.MIN_RAG_CONFIDENCE or src not in {"pdf", "image"}:
-        for fn in (
-            search_agent.search_arxiv,
-            search_agent.search_semantic_scholar,
-            search_agent.search_web,
-        ):
-            try:
-                res = fn(text)
-                if res and "no" not in res.lower():
-                    ans, conf = res, 0.0
-                    break
-            except Exception:
-                continue
-        if not ans:
-            ans = "No answer found"
+
+    if conf < settings.MIN_RAG_CONFIDENCE:
+        ans = _fallback_search(text)
+        conf = 0.0
+        src = None
+
     rag_agent.save_memory(text, ans, session_id=session_id)
-    translated = translate_agent.translate_response(ans, lang)
-    return translated, conf
+    if src == "image":
+        translated = ans
+    else:
+        translated = translate_agent.translate_response(ans, lang)
+    return translated, conf, src
 
 
 @router.post("/chat")
@@ -101,7 +88,15 @@ async def chat_endpoint(payload: ChatRequest) -> dict:
     if not payload.session_id:
         raise HTTPException(status_code=400, detail="session_id required")
 
-    reply, conf = chat_logic(payload.message, payload.lang, payload.session_id)
+    reply, conf, src = chat_logic(
+        payload.message, payload.lang, payload.session_id
+    )
+    if src == "image":
+        return {
+            "image_url": reply,
+            "confidence": conf,
+            "session_id": payload.session_id,
+        }
     return {
         "reply": reply,
         "confidence": conf,
