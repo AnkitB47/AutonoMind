@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
@@ -7,16 +8,15 @@ const nextConfig = {
     },
   },
   async rewrites() {
-    const backend =
-      process.env.NODE_ENV === 'production'
-        ? process.env.NEXT_PUBLIC_FASTAPI_URL
-        : 'http://localhost:8000';
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${backend}/:path*`,
-      },
-    ];
+    if (process.env.NODE_ENV !== 'production') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:8000/:path*',
+        },
+      ];
+    }
+    return [];
   },
 };
 

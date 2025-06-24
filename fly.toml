@@ -2,7 +2,7 @@ app = "autonomind"
 
 [build]
   dockerfile = "docker/Dockerfile.cpu"
-  args = { NEXT_PUBLIC_FASTAPI_URL = "https://autonomind.fly.dev", MIN_CONFIDENCE = "0.4" }
+  args = { MIN_CONFIDENCE = "0.4" }
 
 [env]
   MIN_CONFIDENCE = "0.4"

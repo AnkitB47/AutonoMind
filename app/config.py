@@ -38,9 +38,6 @@ class Settings:
             if pod_id:
                 self.RUNPOD_URL = f"https://{pod_id}-8000.proxy.runpod.net"
 
-        if self.env == "production" and not (self.RUNPOD_URL or self.NEXT_PUBLIC_FASTAPI_URL):
-            raise EnvironmentError("RUNPOD_URL or NEXT_PUBLIC_FASTAPI_URL must be set in production")
-
         # Safely parse MIN_CONFIDENCE, falling back to 0.4 if missing or empty
         raw = os.getenv("MIN_CONFIDENCE")
         try:

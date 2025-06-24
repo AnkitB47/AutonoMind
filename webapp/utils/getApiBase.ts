@@ -1,16 +1,14 @@
 export function getApiBase(): string {
-  // at runtime in the browser, we may have injected window.RUNTIME_FASTAPI_URL
+  // Use the runtime-injected URL when available in the browser
   if (typeof window !== 'undefined' && (window as any).RUNTIME_FASTAPI_URL) {
-    return (window as any).RUNTIME_FASTAPI_URL;
+    return (window as any).RUNTIME_FASTAPI_URL as string;
   }
-  // in development, use the Next.js /api proxy
+
+  // Local development proxies through Next.js
   if (process.env.NODE_ENV !== 'production') {
     return '/api';
   }
-  // in production SSR, ensure the env var exists
-  const url = process.env.NEXT_PUBLIC_FASTAPI_URL;
-  if (!url) {
-    throw new Error('NEXT_PUBLIC_FASTAPI_URL not set in production');
-  }
-  return url;
+
+  // Fall back to the build-time variable or localhost
+  return process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
 }

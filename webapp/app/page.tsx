@@ -3,6 +3,8 @@ import Sidebar from '../components/Layout/Sidebar';
 import TopNav from '../components/Layout/TopNav';
 import RightPanel from '../components/Layout/RightPanel';
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   return (
     <div className="flex h-screen flex-col">

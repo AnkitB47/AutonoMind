@@ -13,36 +13,34 @@ The server exposes a `/ping` endpoint for simple health checks.
 
 ## Frontend configuration
 
-The frontend reads `NEXT_PUBLIC_FASTAPI_URL` for all API requests. In
-development you can point this at your local FastAPI instance. In production it
-**must** be the public RunPod/Fly URL of your backend; otherwise the browser
-will try to call `http://localhost:8000`.
+The frontend discovers the backend URL at runtime. `entrypoint.sh` writes
+`webapp/public/env.js` containing `window.RUNTIME_FASTAPI_URL` which points to
+the FastAPI proxy. During development, Next.js proxies `/api/*` to your local
+backend, while in production the app fetches this runtime variable.
 
-In production the backend also checks that either `RUNPOD_URL` or
-`NEXT_PUBLIC_FASTAPI_URL` is configured. When running on RunPod the
-`RUNPOD_POD_ID` environment variable is automatically available, so the
-application will derive `RUNPOD_URL` as
-`https://$RUNPOD_POD_ID-8000.proxy.runpod.net` if it was not explicitly set.
-If neither value can be determined the server will fail to start.
-
-All calls go through the `/api` path which Next.js rewrites to
-`NEXT_PUBLIC_FASTAPI_URL` at runtime. When building the Docker image pass this
-value as a build argument and also set it at runtime so `next start` exposes the
-correct base URL.
+If `RUNPOD_POD_ID` is present the entrypoint derives the URL as
+`https://$RUNPOD_POD_ID-8000.proxy.runpod.net` and exports
+`NEXT_PUBLIC_FASTAPI_URL` for server‑side rendering. No build-time argument is
+required.
 
 Example Fly deployment:
 
-**Do not append `:3000` to the public URL.** The Fly proxy maps
-incoming traffic on ports 80 and 443 to the container's internal port 3000,
-so your frontend is available directly at `https://your-app.fly.dev`.
+**Do not append `:3000` to the public URL.** The Fly proxy maps incoming
+traffic on ports 80 and 443 to the container's internal port 3000, so your
+frontend is available directly at `https://your-app.fly.dev`.
 
 ```bash
-fly deploy --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev \
-  -e NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev
+fly deploy -e NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev
 ```
 
 When `RUNPOD_URL` is configured on the backend, heavy tasks like audio
 transcription and image OCR will be delegated to that remote pod.
+
+To confirm the frontend picked up the correct backend URL, hit `/api/debug-env`
+after deployment. It should return the value of `NEXT_PUBLIC_FASTAPI_URL`.
+
+The container exposes `/ping` on port 8000 which can be used for health checks
+before starting the frontend
 
 The container exposes `/ping` on port 8000 which can be used for health checks
 before starting the frontend.

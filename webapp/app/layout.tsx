@@ -4,6 +4,8 @@ import { ChatProvider } from "../context/ChatProvider";
 import { ThemeProvider } from '../context/ThemeProvider';
 import Script from 'next/script';
 
+export const dynamic = 'force-dynamic';
+
 export default function RootLayout({ children }: { children: ReactNode }) {
    return (
     <html lang="en">
