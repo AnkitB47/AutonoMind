@@ -7,6 +7,10 @@ export function getApiBase(): string {
   if (process.env.NODE_ENV !== 'production') {
     return '/api';
   }
-  // in production SSR, fall back to the env var
-  return process.env.NEXT_PUBLIC_FASTAPI_URL || '';
+  // in production SSR, ensure the env var exists
+  const url = process.env.NEXT_PUBLIC_FASTAPI_URL;
+  if (!url) {
+    throw new Error('NEXT_PUBLIC_FASTAPI_URL not set in production');
+  }
+  return url;
 }
