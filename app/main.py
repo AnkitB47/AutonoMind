@@ -28,7 +28,7 @@ def ping() -> dict:
     return {"status": "ok"}
 
 # Register routers
-app.include_router(upload.router)
-app.include_router(chat.router)
-app.include_router(image_search.router)
-app.include_router(input_handler.router)
+app.include_router(upload.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+app.include_router(image_search.router, prefix="/api")
+app.include_router(input_handler.router, prefix="/api")

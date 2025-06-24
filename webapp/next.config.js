@@ -10,7 +10,7 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:8000/:path*",  // forward every /api call to FastAPI
+        destination: "http://localhost:8000/api/:path*",  // forward every /api call to FastAPI
       },
     ];
   },
