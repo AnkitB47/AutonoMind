@@ -1,8 +1,7 @@
-import axios from 'axios';
-import { getApiBase } from '../utils/getApiBase';
+// webapp/services/apiClient.ts
+import axios from "axios";
+import { getApiBase } from "../utils/getApiBase";
 
-const fastApi = axios.create({
-  baseURL: getApiBase()
+export const fastApi = axios.create({
+  baseURL: getApiBase(),
 });
-
-export { fastApi };
