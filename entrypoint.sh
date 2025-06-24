@@ -1,17 +1,18 @@
 #!/bin/bash
 set -e
 
-# Build the proxy URL from the pod id when running on RunPod
+# Detect pod id and build proxy URL at runtime
 if [ -n "$RUNPOD_POD_ID" ]; then
-  export RUNPOD_URL="https://${RUNPOD_POD_ID}-8000.proxy.runpod.net"
-  # Allow SSR to reuse this value
-  export NEXT_PUBLIC_FASTAPI_URL="${NEXT_PUBLIC_FASTAPI_URL:-$RUNPOD_URL}"
+  RUNPOD_URL="https://${RUNPOD_POD_ID}-8000.proxy.runpod.net"
 fi
+
+# Propagate the backend URL for SSR and the browser bundle
+export NEXT_PUBLIC_FASTAPI_URL="${RUNPOD_URL}"
 
 # Expose runtime URL to the frontend via public/env.js
 mkdir -p webapp/public
 chmod 755 webapp/public
-echo "window.RUNTIME_FASTAPI_URL='${RUNPOD_URL}'" > webapp/public/env.js
+echo "window.RUNTIME_FASTAPI_URL='${NEXT_PUBLIC_FASTAPI_URL:-http://localhost:8000}'" > webapp/public/env.js
 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 PID=$!
