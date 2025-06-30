@@ -7,10 +7,11 @@ const nextConfig = {
     },
   },
   async rewrites() {
+    const target = process.env.NEXT_PUBLIC_FASTAPI_URL || "http://localhost:8000";
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:8000/:path*",  // forward every /api call to FastAPI
+        destination: `${target}/:path*`, // forward every /api call to FastAPI
       },
     ];
   },
