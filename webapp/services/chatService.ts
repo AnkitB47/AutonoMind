@@ -1,4 +1,5 @@
-import { fastApi } from './apiClient';
+import axios from 'axios';
+import { getFastApiBase } from './apiClient';
 
 interface SessionOpts {
   sessionId?: string;
@@ -11,6 +12,7 @@ export type ChatResponse = {
   session_id?: string;
 };
 
+
 export async function sendChat(
   input: string | Blob | File,
   mode: 'text' | 'voice' | 'image' | 'search',
@@ -18,16 +20,17 @@ export async function sendChat(
   opts: SessionOpts = {}
 ): Promise<ChatResponse> {
   const { sessionId } = opts;
+  const base = getFastApiBase();
 
   if (mode === 'text') {
-    const { data } = await fastApi.post('/chat', {
+    const { data } = await axios.post(`${base}/chat`, {
       message: input,
       lang,
       session_id: sessionId,
     });
     return data as ChatResponse;
   } else if (mode === 'search') {
-    const { data } = await fastApi.post('/input/search', {
+    const { data } = await axios.post(`${base}/input/search`, {
       query: input,
       lang,
       session_id: sessionId,
@@ -41,10 +44,10 @@ export async function sendChat(
   if (sessionId) form.append('session_id', sessionId);
 
   if (mode === 'voice') {
-    const { data } = await fastApi.post('/input/voice', form);
+    const { data } = await axios.post(`${base}/input/voice`, form);
     return { reply: data.response || '...' };
   } else if (mode === 'image') {
-    const { data } = await fastApi.post('/upload', form);
+    const { data } = await axios.post(`${base}/upload`, form)
     return { reply: data.message || 'uploaded', session_id: data.session_id };
   }
 
@@ -58,10 +61,11 @@ export async function uploadFile(
   opts: SessionOpts = {}
 ) {
   const { sessionId } = opts;
+  const base = getFastApiBase();
   const form = new FormData();
   form.append('file', file);
   form.append('lang', lang);
   if (sessionId) form.append('session_id', sessionId);
-  const { data } = await fastApi.post('/upload', form);
+  const { data } = await axios.post(`${base}/upload`, form);
   return data as { message: string; session_id?: string; result?: string };
 }

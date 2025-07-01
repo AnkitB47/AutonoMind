@@ -4,7 +4,7 @@ import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
 import LoaderDots from '../Shared/LoaderDots';
 import { ChatContext } from '../../context/ChatProvider';
-import { getApiBase } from '../../utils/getApiBase';
+import { getFastApiBase } from '../../services/apiClient';
 
 export default function ChatWindow() {
   const { messages, loading, error } = useContext(ChatContext);
@@ -21,7 +21,7 @@ export default function ChatWindow() {
           <ChatBubble key={idx} isUser={m.role === 'user'}>
             {m.imageUrl ? (
               <img
-                src={`${getApiBase()}${m.imageUrl}`}
+                src={`${getFastApiBase()}${m.imageUrl}`}
                 alt="RAG result"
                 className="max-w-xs rounded"
               />
