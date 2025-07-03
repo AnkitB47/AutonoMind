@@ -4,7 +4,6 @@ import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
 import LoaderDots from '../Shared/LoaderDots';
 import { ChatContext } from '../../context/ChatProvider';
-import { getFastApiBase } from '../../services/apiClient';
 
 export default function ChatWindow() {
   const { messages, loading, error } = useContext(ChatContext);
