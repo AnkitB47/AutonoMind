@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getFastApiBase } from './apiClient';
+import apiClient from './apiClient';
 
 interface SessionOpts {
   sessionId?: string;
@@ -20,17 +20,16 @@ export async function sendChat(
   opts: SessionOpts = {}
 ): Promise<ChatResponse> {
   const { sessionId } = opts;
-  const base = getFastApiBase();
 
   if (mode === 'text') {
-    const { data } = await axios.post(`${base}/chat`, {
+    const { data } = await apiClient.post('/chat', {
       message: input,
       lang,
       session_id: sessionId,
     });
     return data as ChatResponse;
   } else if (mode === 'search') {
-    const { data } = await axios.post(`${base}/input/search`, {
+    const { data } = await apiClient.post('/input/search', {
       query: input,
       lang,
       session_id: sessionId,
@@ -44,10 +43,10 @@ export async function sendChat(
   if (sessionId) form.append('session_id', sessionId);
 
   if (mode === 'voice') {
-    const { data } = await axios.post(`${base}/input/voice`, form);
+    const { data } = await apiClient.post('/input/voice', form);
     return { reply: data.response || '...' };
   } else if (mode === 'image') {
-    const { data } = await axios.post(`${base}/upload`, form)
+    const { data } = await apiClient.post('/upload', form);
     return { reply: data.message || 'uploaded', session_id: data.session_id };
   }
 
@@ -61,11 +60,10 @@ export async function uploadFile(
   opts: SessionOpts = {}
 ) {
   const { sessionId } = opts;
-  const base = getFastApiBase();
   const form = new FormData();
   form.append('file', file);
   form.append('lang', lang);
   if (sessionId) form.append('session_id', sessionId);
-  const { data } = await axios.post(`${base}/upload`, form);
+  const { data } = await apiClient.post('/upload', form);
   return data as { message: string; session_id?: string; result?: string };
 }

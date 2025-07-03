@@ -21,7 +21,7 @@ export default function ChatWindow() {
           <ChatBubble key={idx} isUser={m.role === 'user'}>
             {m.imageUrl ? (
               <img
-                src={`${getFastApiBase()}${m.imageUrl}`}
+                src={`/api${m.imageUrl}`}
                 alt="RAG result"
                 className="max-w-xs rounded"
               />
