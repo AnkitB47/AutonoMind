@@ -55,11 +55,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [messages, sessionId]);
 
-  const sendUserInput = async (input: string | Blob | File) => {
+    const sendUserInput = async (input: string | Blob | File) => {
     const userText = typeof input === 'string' ? input : '[file]';
     setMessages((m) => [...m, { role: 'user', content: userText, ts: Date.now() }]);
     setLoading(true);
     setError(null);
+
+    // Unified file-upload branch for images *or* PDFs
+    if (
+      input instanceof File &&
+      (input.type.startsWith('image/') || input.type === 'application/pdf')
+    ) {
+      const form = new FormData();
+      form.append('file', input);
+      form.append('session_id', sessionId);
+      const resUpload = await fetch(`${getApiBase()}/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      const data = await resUpload.json();
+      if (data.session_id) setSessionId(data.session_id);
+      setMessages((m) => [
+        ...m,
+        { role: 'bot', content: data.message, ts: Date.now() },
+      ]);
+      setLoading(false);
+      return;
+    }
 
     const res = await fetch(`${getApiBase()}/chat`, {
       method: 'POST',

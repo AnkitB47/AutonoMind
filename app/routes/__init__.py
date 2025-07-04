@@ -1,3 +1,3 @@
-from . import chat
+from . import chat, upload
 
-__all__ = ["chat"]
+__all__ = ["chat", "upload"]

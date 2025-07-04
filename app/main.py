@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import chat
+from app.routes import chat, upload
 from app.config import Settings
 
 settings = Settings()
@@ -33,4 +33,5 @@ def debug_env() -> dict:
     return {"NEXT_PUBLIC_FASTAPI_URL": settings.NEXT_PUBLIC_FASTAPI_URL}
 
 # Register routers
+app.include_router(upload.router)
 app.include_router(chat.router)

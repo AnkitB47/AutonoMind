@@ -1,69 +1,44 @@
-import axios from 'axios';
-import apiClient from './apiClient';
+import getApiBase from '../utils/getApiBase';
 
-interface SessionOpts {
-  sessionId?: string;
-}
+export type Mode = 'text' | 'voice' | 'image' | 'search';
 
-export type ChatResponse = {
-  reply?: string;
-  image_url?: string;
-  confidence?: number;
-  session_id?: string;
-};
-
-
-export async function sendChat(
-  input: string | Blob | File,
-  mode: 'text' | 'voice' | 'image' | 'search',
+export async function sendMessage(
+  sessionId: string,
+  mode: Mode,
   lang: string,
-  opts: SessionOpts = {}
-): Promise<ChatResponse> {
-  const { sessionId } = opts;
-
-  if (mode === 'text') {
-    const { data } = await apiClient.post('/chat', {
-      message: input,
-      lang,
-      session_id: sessionId,
-    });
-    return data as ChatResponse;
-  } else if (mode === 'search') {
-    const { data } = await apiClient.post('/input/search', {
-      query: input,
-      lang,
-      session_id: sessionId,
-    });
-    return { reply: data.response || '...' };
-  }
-
-  const form = new FormData();
-  form.append('file', input);
-  form.append('lang', lang);
-  if (sessionId) form.append('session_id', sessionId);
-
-  if (mode === 'voice') {
-    const { data } = await apiClient.post('/input/voice', form);
-    return { reply: data.response || '...' };
-  } else if (mode === 'image') {
-    const { data } = await apiClient.post('/upload', form);
-    return { reply: data.message || 'uploaded', session_id: data.session_id };
-  }
-
-  throw new Error(`Unsupported mode: ${mode}`);
-}
-
-
-export async function uploadFile(
-  file: File,
-  lang: string,
-  opts: SessionOpts = {}
+  content: string | File | Blob
 ) {
-  const { sessionId } = opts;
-  const form = new FormData();
-  form.append('file', file);
-  form.append('lang', lang);
-  if (sessionId) form.append('session_id', sessionId);
-  const { data } = await apiClient.post('/upload', form);
-  return data as { message: string; session_id?: string; result?: string };
+  // 1) Any File upload goes to /upload
+  if (content instanceof File) {
+    const form = new FormData();
+    form.append('file', content);
+    form.append('session_id', sessionId);
+    const res = await fetch(`${getApiBase()}/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    return res.json();
+  }
+
+  // 2) Otherwise treat as chat
+  const body = typeof content === 'string'
+    ? content
+    : await blobToBase64(content);
+
+  const res = await fetch(`${getApiBase()}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, mode, lang, content: body }),
+  });
+
+  return res;
+}
+
+function blobToBase64(b: Blob): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () =>
+      resolve((reader.result as string).split(',')[1]);
+    reader.readAsDataURL(b);
+  });
 }

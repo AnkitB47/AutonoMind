@@ -73,6 +73,16 @@ class EndpointStubs(unittest.TestCase):
         self.assertIn("X-Confidence", res.headers)
         self.assertIn("X-Source", res.headers)
 
+    @patch("agents.rag_agent.process_file", return_value=("ok", "sid"))
+    def test_upload_pdf(self, mock_pf):
+        res = client.post(
+            "/upload",
+            files={"file": ("t.pdf", b"123", "application/pdf")},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["session_id"], "sid")
+        mock_pf.assert_called()
+
     @patch("app.routes.chat._transcribe", return_value="hello")
     @patch("app.routes.chat.rag_agent.handle_query", return_value=("ok", 0.0, None))
     def test_chat_voice(self, mock_hq, mock_trans):
