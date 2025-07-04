@@ -12,6 +12,7 @@ class SearchInput(BaseModel):
     session_id: Optional[str] = None
 
 class ChatRequest(BaseModel):
-    message: str
-    lang: str = "en"
     session_id: str
+    mode: str = "text"
+    content: str
+    lang: str = "en"

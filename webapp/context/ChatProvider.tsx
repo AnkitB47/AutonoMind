@@ -1,6 +1,6 @@
 'use client';
-import { createContext, useState, ReactNode } from 'react';
-import { sendChat, uploadFile as uploadFileSvc } from '../services/chatService';
+import { createContext, useState, ReactNode, useEffect } from 'react';
+import getApiBase from '../utils/getApiBase';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
@@ -8,6 +8,8 @@ export interface Message {
   role: 'user' | 'bot';
   content: string;
   imageUrl?: string;
+  source?: string | null;
+  ts: number;
 }
 
 interface ChatCtx {
@@ -21,7 +23,6 @@ interface ChatCtx {
   sessionId: string;
   setSessionId: (id: string) => void;
   sendUserInput: (value: string | File | Blob) => void;
-  uploadFile: (file: File) => void;
   clearMessages: () => void;
 }
 
@@ -29,57 +30,87 @@ const ChatContext = createContext<ChatCtx>({} as ChatCtx);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<Mode>('text');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('am_history');
+      return saved ? (JSON.parse(saved) as Message[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState('en');
-  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => {
+    if (typeof window === 'undefined') return crypto.randomUUID();
+    const saved = localStorage.getItem('am_session');
+    return saved || crypto.randomUUID();
+  });
 
-  const sendUserInput = async (input: string | File | Blob) => {
-    setMessages((m) => [
-      ...m,
-      { role: 'user', content: typeof input === 'string' ? input : '[file]' },
-    ]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('am_history', JSON.stringify(messages));
+      localStorage.setItem('am_session', sessionId);
+    }
+  }, [messages, sessionId]);
+
+  const sendUserInput = async (input: string | Blob | File) => {
+    const userText = typeof input === 'string' ? input : '[file]';
+    setMessages((m) => [...m, { role: 'user', content: userText, ts: Date.now() }]);
     setLoading(true);
     setError(null);
-    try {
-      const res = await sendChat(input as any, mode, language, {
-        sessionId,
+
+    const res = await fetch(`${getApiBase()}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        mode,
+        lang: language,
+        content: typeof input === 'string' ? input : await blobToBase64(input),
+      }),
+    });
+
+    if (!res.body) {
+      setLoading(false);
+      return;
+    }
+
+    const source = res.headers.get('x-source');
+    setMessages((m) => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+    while (!done) {
+      const { value, done: d } = await reader.read();
+      done = d;
+      const chunk = decoder.decode(value || new Uint8Array());
+      setMessages((msgs) => {
+        const updated = [...msgs];
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          content: updated[updated.length - 1].content + chunk,
+        };
+        return updated;
       });
-      if (!res) return;
-      if (res.session_id) setSessionId(res.session_id);
-      if ('image_url' in res && res.image_url) {
-        setMessages((m) => [...m, { role: 'bot', content: '', imageUrl: res.image_url }]);
-      } else {
-        const text =
-          'reply' in res && typeof res.reply === 'string'
-            ? res.reply
-            : String(res);
-        setMessages((m) => [...m, { role: 'bot', content: text }]);
-      }
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
-  const uploadFile = async (file: File) => {
-    setMessages((m) => [...m, { role: 'user', content: '[file]' }]);
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await uploadFileSvc(file, language, { sessionId });
-      if (res.session_id) setSessionId(res.session_id);
-      setMessages((m) => [...m, { role: 'bot', content: res.message }]);
-      setMode('text');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+  function blobToBase64(b: Blob): Promise<string> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.readAsDataURL(b);
+    });
+  }
+  const clearMessages = () => {
+    setMessages([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('am_history');
     }
   };
-  const clearMessages = () => setMessages([]);
 
   return (
     <ChatContext.Provider
@@ -94,7 +125,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         sessionId,
         setSessionId,
         sendUserInput,
-        uploadFile,
         clearMessages,
       }}
     >

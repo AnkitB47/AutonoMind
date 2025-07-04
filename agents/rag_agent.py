@@ -13,7 +13,8 @@ import time
 from cachetools import TTLCache
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from agents import search_agent
+from agents import search_agent, translate_agent
+import base64
 from app.config import Settings
 
 settings = Settings()
@@ -40,6 +41,7 @@ __all__ = [
     "load_memory",
     "search_clip_image",
     "rewrite_answer",
+    "handle_query",
 ]
 
 # Session caches
@@ -222,3 +224,42 @@ def handle_text(text: str, namespace: str | None = None, session_id: str | None 
     if namespace == "image":
         parts.append(f"CLIP:\n{clip_result or 'No match found'}")
     return "\n\n".join(parts)
+
+
+def handle_query(mode: str, content: str, session_id: str, lang: str = "en") -> tuple[str, float, str | None]:
+    """Unified RAG entry point for different input modes."""
+    if mode == "search":
+        text = search_agent.handle_query(content)
+        return translate_agent.translate_response(text, lang), 1.0, "web"
+
+    if mode == "image":
+        data = base64.b64decode(content)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".img") as tmp:
+            tmp.write(data)
+            tmp_path = tmp.name
+        try:
+            content = extract_image_text(tmp_path)
+        finally:
+            os.remove(tmp_path)
+
+    text = content if mode != "voice" else content
+
+    raw = session_store.get(session_id, {}).get("text", "")
+    combined = f"{raw}\n\nUser question: {text}" if raw else text
+    try:
+        ans, conf, src = query_pdf_image(combined, session_id=session_id)
+    except Exception:
+        ans, conf, src = "", 0.0, None
+
+    if src == "image":
+        save_memory(text, ans, session_id=session_id)
+        return translate_agent.translate_response(ans, lang), conf, src
+
+    if conf < settings.MIN_RAG_CONFIDENCE:
+        ans = search_agent.handle_query(text)
+        conf = 0.0
+        src = "web"
+
+    save_memory(text, ans, session_id=session_id)
+    translated = translate_agent.translate_response(ans, lang)
+    return translated, conf, src

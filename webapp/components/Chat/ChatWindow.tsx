@@ -17,7 +17,7 @@ export default function ChatWindow() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((m, idx) => (
-          <ChatBubble key={idx} isUser={m.role === 'user'}>
+          <ChatBubble key={idx} isUser={m.role === 'user'} source={m.source}>
             {m.imageUrl ? (
               <img
                 src={`/api${m.imageUrl}`}
@@ -27,6 +27,9 @@ export default function ChatWindow() {
             ) : (
               m.content
             )}
+            <div className="text-xs opacity-50 mt-1">
+              {new Date(m.ts).toLocaleTimeString()}
+            </div>
           </ChatBubble>
         ))}
         {loading && (

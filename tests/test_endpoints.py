@@ -58,21 +58,33 @@ for n,m in mods.items():
 
 from fastapi.testclient import TestClient
 from app.main import app
+import base64
 
 client = TestClient(app)
 
 class EndpointStubs(unittest.TestCase):
-    @patch("app.routes.chat.extract_image_text", return_value="ok")
-    def test_ocr_stub(self, _):
-        res = client.post("/ocr", files={"file": ("x.png", b"1", "image/png")})
+    @patch("app.routes.chat.rag_agent.handle_query", return_value=("hi", 0.0, None))
+    def test_chat_text(self, mock_hq):
+        res = client.post("/chat", json={"session_id": "sid", "mode": "text", "content": "q"})
         self.assertEqual(res.status_code, 200)
-        self.assertIn("text", res.json())
+        self.assertEqual(res.text.strip(), "hi")
+        mock_hq.assert_called_with("text", "q", "sid", "en")
+        self.assertEqual(res.headers.get("X-Session-ID"), "sid")
+        self.assertIn("X-Confidence", res.headers)
+        self.assertIn("X-Source", res.headers)
 
-    @patch("app.routes.chat.transcribe_audio", return_value="hi")
-    def test_transcribe_stub(self, _):
-        res = client.post("/transcribe", files={"file": ("a.wav", b"1", "audio/wav")})
+    @patch("app.routes.chat._transcribe", return_value="hello")
+    @patch("app.routes.chat.rag_agent.handle_query", return_value=("ok", 0.0, None))
+    def test_chat_voice(self, mock_hq, mock_trans):
+        audio_b64 = base64.b64encode(b"123").decode()
+        res = client.post("/chat", json={"session_id": "sid", "mode": "voice", "content": audio_b64})
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json()["text"], "hi")
+        self.assertEqual(res.text.strip(), "ok")
+        mock_trans.assert_called()
+        mock_hq.assert_called_with("text", "hello", "sid", "en")
+        self.assertEqual(res.headers.get("X-Session-ID"), "sid")
+        self.assertIn("X-Confidence", res.headers)
+        self.assertIn("X-Source", res.headers)
 
     @patch("agents.rag_agent.search_pinecone_with_score", return_value=("", 0.0))
     @patch("agents.clip_faiss.search_text", return_value=[])
@@ -80,20 +92,6 @@ class EndpointStubs(unittest.TestCase):
     def test_clip_fallback(self, _1, _2, _3):
         ans, conf, src = __import__("agents.rag_agent", fromlist=["query_pdf_image"]).query_pdf_image("q", session_id="s")
         self.assertIsInstance(ans, str)
-
-    @patch("app.routes.input_handler.chat_logic", return_value=("ok", 0.0, None))
-    @patch("app.routes.input_handler.is_runpod_live", return_value=False)
-    @patch("app.routes.input_handler.os.remove")
-    @patch("app.routes.input_handler.extract_image_text", return_value="txt")
-    def test_image_tempfile(self, mock_extract, mock_rm, _live, _chat):
-        res = client.post(
-            "/input/image",
-            data={"lang": "en", "session_id": "sid"},
-            files={"file": ("img.png", b"123", "image/png")},
-        )
-        self.assertEqual(res.status_code, 200)
-        path = mock_extract.call_args[0][0]
-        mock_rm.assert_called_with(path)
 
     @patch("models.whisper_runner.whisper")
     @patch("models.whisper_runner.os.remove")
@@ -106,13 +104,6 @@ class EndpointStubs(unittest.TestCase):
         text = transcribe_audio(b"123")
         self.assertEqual(text, "ok")
         self.assertTrue(mock_rm.called)
-
-    @patch("app.routes.upload.process_file", return_value=("✅ uploaded", "sid"))
-    def test_upload_generates_session(self, mock_pf):
-        res = client.post("/upload", files={"file": ("t.txt", b"1")})
-        self.assertEqual(res.status_code, 200)
-        data = res.json()
-        self.assertEqual(data["session_id"], "sid")
 
 if __name__ == "__main__":
     unittest.main()

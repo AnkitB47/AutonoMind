@@ -40,10 +40,9 @@ To confirm the frontend picked up the correct backend URL, hit `/api/debug-env`
 after deployment. It should return the value of `NEXT_PUBLIC_FASTAPI_URL`.
 
 The container exposes `/ping` on port 8000 which can be used for health checks
-before starting the frontend
-
-The container exposes `/ping` on port 8000 which can be used for health checks
-before starting the frontend.
+before starting the frontend. Note that the reverse proxy times out requests
+after about **100 seconds**, so large uploads should be split into chunks or use
+periodic progress calls to keep the connection alive
 
 Example Fly deployment:
 
