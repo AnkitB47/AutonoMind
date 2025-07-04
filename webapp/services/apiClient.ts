@@ -1,9 +1,8 @@
 // webapp/services/apiClient.ts
 import axios from 'axios';
+import getApiBase from '../utils/getApiBase';
 
-// Use a relative base URL so requests go through Next.js rewrites in development
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: getApiBase(),
 });
-
 export default apiClient;
