@@ -27,6 +27,11 @@ def root() -> dict:
 def ping() -> dict:
     return {"status": "ok"}
 
+# Return the runtime backend URL to verify environment propagation
+@app.get("/debug-env")
+def debug_env() -> dict:
+    return {"NEXT_PUBLIC_FASTAPI_URL": settings.NEXT_PUBLIC_FASTAPI_URL}
+
 # Register routers
 app.include_router(upload.router)
 app.include_router(chat.router)
