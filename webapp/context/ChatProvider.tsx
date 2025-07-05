@@ -5,7 +5,16 @@ import getApiBase from '../utils/getApiBase';
 
 export type Mode = 'text'|'voice'|'image'|'search';
 
-export interface Message { role:'user'|'bot'; content:string; source?:string|null; ts:number; }
+export interface Message {
+  role: 'user' | 'bot';
+  content: string;
+  /** optional URL of an ingested image (RAG result) */
+  imageUrl?: string;
+  /** optional source tag for RAG / web fallback */
+  source?: string | null;
+  /** timestamp for display */
+  ts: number;
+}
 
 interface Ctx { mode:Mode; messages:Message[]; loading:boolean; error:string|null;
   language:string; setLanguage:(l:string)=>void; setMode:(m:Mode)=>void;
