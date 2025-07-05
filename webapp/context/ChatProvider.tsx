@@ -34,7 +34,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem('am_history');
-      return saved ? (JSON.parse(saved) as Message[]) : [];
+      return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
@@ -55,33 +55,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [messages, sessionId]);
 
-    const sendUserInput = async (input: string | Blob | File) => {
+  const sendUserInput = async (input: string | Blob | File) => {
+    // echo user
     const userText = typeof input === 'string' ? input : '[file]';
-    setMessages((m) => [...m, { role: 'user', content: userText, ts: Date.now() }]);
+    setMessages(m => [...m, { role: 'user', content: userText, ts: Date.now() }]);
     setLoading(true);
     setError(null);
 
-    // Unified file-upload branch for images *or* PDFs
-    if (
-      input instanceof File &&
-      (input.type.startsWith('image/') || input.type === 'application/pdf')
-    ) {
+    // **ANY File** upload (image, PDF, etc.) → `/upload`
+    if (input instanceof File) {
       const form = new FormData();
       form.append('file', input);
       form.append('session_id', sessionId);
-      const resUpload = await fetch(`${getApiBase()}/upload`, {
+      const res = await fetch(`${getApiBase()}/upload`, {
         method: 'POST',
         body: form,
       });
-      const data = await resUpload.json();
+      const data = await res.json();
       if (data.session_id) setSessionId(data.session_id);
-      setMessages((m) => [
+      setMessages(m => [
         ...m,
         { role: 'bot', content: data.message, ts: Date.now() },
       ]);
       setLoading(false);
       return;
     }
+
+    // otherwise send to /chat
+    const payload =
+      typeof input === 'string'
+        ? input
+        : await blobToBase64(input as Blob);
 
     const res = await fetch(`${getApiBase()}/chat`, {
       method: 'POST',
@@ -90,7 +94,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         session_id: sessionId,
         mode,
         lang: language,
-        content: typeof input === 'string' ? input : await blobToBase64(input),
+        content: payload,
       }),
     });
 
@@ -100,7 +104,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
 
     const source = res.headers.get('x-source');
-    setMessages((m) => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
+    setMessages(m => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let done = false;
@@ -108,25 +113,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const { value, done: d } = await reader.read();
       done = d;
       const chunk = decoder.decode(value || new Uint8Array());
-      setMessages((msgs) => {
-        const updated = [...msgs];
-        updated[updated.length - 1] = {
-          ...updated[updated.length - 1],
-          content: updated[updated.length - 1].content + chunk,
-        };
-        return updated;
+      setMessages(msgs => {
+        const copy = [...msgs];
+        copy[copy.length - 1].content += chunk;
+        return copy;
       });
     }
     setLoading(false);
   };
 
   function blobToBase64(b: Blob): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+      reader.onloadend = () =>
+        resolve((reader.result as string).split(',')[1]);
       reader.readAsDataURL(b);
     });
   }
+
   const clearMessages = () => {
     setMessages([]);
     if (typeof window !== 'undefined') {
