@@ -1,6 +1,7 @@
 'use client';
 import { useContext, useState } from 'react';
 import { Send, Mic, Image as ImgIcon, Search } from 'lucide-react';
+import type { Blob } from 'buffer';
 import { ChatContext } from '../../context/ChatProvider';
 import { Button } from '../Shared/Button';
 import useSpeechRecognition from '../../hooks/useSpeechRecognition';
@@ -28,8 +29,15 @@ export default function ChatInput() {
 
   const handleRecord = async () => {
     if (isRecording) {
-      const audio = await stop();
-      if (audio) sendUserInput(audio);
+      const audioBlob = await stop();
+      if (audioBlob) {
+        const file = new File(
+          [audioBlob],
+          `recording-${Date.now()}.webm`,
+          { type: audioBlob.type }
+        );
+        sendUserInput(file);
+      }
     } else {
       start();
     }
