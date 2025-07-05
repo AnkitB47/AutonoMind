@@ -10,32 +10,24 @@ export default function ChatWindow() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior:'smooth' });
   }, [messages]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((m, idx) => (
-          <ChatBubble key={idx} isUser={m.role === 'user'} source={m.source}>
-            {m.imageUrl ? (
-              <img
-                src={`/api${m.imageUrl}`}
-                alt="RAG result"
-                className="max-w-xs rounded"
-              />
-            ) : (
-              m.content
-            )}
-            <div className="text-xs opacity-50 mt-1">
-              {new Date(m.ts).toLocaleTimeString()}
-            </div>
+        {messages.map((m, i) => (
+          <ChatBubble key={i} isUser={m.role==='user'} source={m.source}>
+            {m.imageUrl
+              ? <img src={m.imageUrl} alt="result" className="max-w-xs rounded" />
+              : m.content
+            }
+            <div className="text-xs opacity-50 mt-1">{new Date(m.ts).toLocaleTimeString()}</div>
           </ChatBubble>
         ))}
         {loading && (
           <ChatBubble>
-            <span className="mr-2">Thinking…</span>
-            <LoaderDots />
+            <span className="mr-2">Thinking…</span><LoaderDots/>
           </ChatBubble>
         )}
         {error && (
@@ -43,9 +35,9 @@ export default function ChatWindow() {
             <span className="text-destructive">{error}</span>
           </ChatBubble>
         )}
-        <div ref={bottomRef} />
+        <div ref={bottomRef}/>
       </div>
-      <ChatInput />
+      <ChatInput/>
     </div>
   );
 }

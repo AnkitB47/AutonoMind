@@ -1,89 +1,107 @@
-// webapp/context/ChatProvider.tsx
 'use client';
 import { createContext, useState, ReactNode, useEffect } from 'react';
+import { sendMessage } from '../services/chatService';
 import getApiBase from '../utils/getApiBase';
 
-export type Mode = 'text'|'voice'|'image'|'search';
+export type Mode = 'text' | 'voice' | 'image' | 'search';
 
 export interface Message {
   role: 'user' | 'bot';
   content: string;
-  /** optional URL of an ingested image (RAG result) */
   imageUrl?: string;
-  /** optional source tag for RAG / web fallback */
   source?: string | null;
-  /** timestamp for display */
   ts: number;
 }
 
-interface Ctx { mode:Mode; messages:Message[]; loading:boolean; error:string|null;
-  language:string; setLanguage:(l:string)=>void; setMode:(m:Mode)=>void;
-  sessionId:string; setSessionId:(id:string)=>void; sendUserInput:(v:string|File)=>void; clearMessages():void;
+interface ChatCtx {
+  mode: Mode;
+  messages: Message[];
+  loading: boolean;
+  error: string | null;
+  language: string;
+  setLanguage: (l: string) => void;
+  setMode: (m: Mode) => void;
+  sessionId: string;
+  sendUserInput: (value: string | File | Blob) => void;
+  clearMessages: () => void;
 }
 
-export const ChatContext = createContext<Ctx>({} as Ctx);
+export const ChatContext = createContext<ChatCtx>({} as ChatCtx);
 
-export function ChatProvider({children}:{children:ReactNode}){
-  const [mode,setMode]=useState<Mode>('text');
-  const [messages,setMessages]=useState<Message[]>(()=>
-    typeof window==='undefined'?[]:JSON.parse(localStorage.getItem('am_history')||'[]'));
-  const [loading,setLoading]=useState(false), [error,setError]=useState<string|null>(null);
-  const [language,setLanguage]=useState('en');
-  const [sessionId,setSessionId]=useState(()=>
-    typeof window==='undefined'?crypto.randomUUID():localStorage.getItem('am_session')||crypto.randomUUID());
-
-  useEffect(()=>{
-    localStorage.setItem('am_history',JSON.stringify(messages));
-    localStorage.setItem('am_session',sessionId);
-  },[messages,sessionId]);
-
-  const blobToBase64=(b:Blob)=>new Promise<string>(res=>{
-    const r=new FileReader();
-    r.onloadend=()=>res((r.result as string).split(',')[1]);
-    r.readAsDataURL(b);
+export function ChatProvider({ children }: { children: ReactNode }) {
+  const [mode, setMode] = useState<Mode>('text');
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const saved = localStorage.getItem('am_history');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string|null>(null);
+  const [language, setLanguage] = useState('en');
+  const [sessionId, setSessionId] = useState(() => {
+    if (typeof window === 'undefined') return crypto.randomUUID();
+    return localStorage.getItem('am_session') || crypto.randomUUID();
   });
 
-  const sendUserInput=async(input:string|File)=>{
-    setMessages(m=>[...m,{role:'user',content:typeof input==='string'?input:'[file]',ts:Date.now()}]);
-    setLoading(true); setError(null);
+  useEffect(() => {
+    localStorage.setItem('am_history', JSON.stringify(messages));
+    localStorage.setItem('am_session', sessionId);
+  }, [messages, sessionId]);
 
-    // any File → upload
-    if(input instanceof File){
-      const form=new FormData(); form.append('file',input); form.append('session_id',sessionId);
-      const up=await fetch(`${getApiBase()}/upload`,{method:'POST',body:form});
-      const data=await up.json(); if(data.session_id) setSessionId(data.session_id);
-      setMessages(m=>[...m,{role:'bot',content:data.message,ts:Date.now()}]);
-      setLoading(false); return;
-    }
+  const sendUserInput = async (input: string|File|Blob) => {
+    const isFile = input instanceof File;
+    const userText = isFile ? '[file]' : input;
+    setMessages(m => [...m, { role:'user', content:String(userText), ts:Date.now() }]);
+    setLoading(true);
+    setError(null);
 
-    // else → chat stream
-    const payload=typeof input==='string'?input:await blobToBase64(input);
-    const res=await fetch(`${getApiBase()}/chat`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({session_id:sessionId,mode,lang:language,content:payload})
-    });
-    if(!res.body){ setLoading(false); return; }
-    const src=res.headers.get('x-source');
-    setMessages(m=>[...m,{role:'bot',content:'',source:src,ts:Date.now()}]);
-    const reader=res.body.getReader(),dec=new TextDecoder();
-    let done=false;
-    while(!done){
-      const {value,done:d}=await reader.read(); done=d;
-      const chunk=dec.decode(value||new Uint8Array());
-      setMessages(msgs=>{
-        const cp=[...msgs];
-        cp[cp.length-1].content+=chunk;
-        return cp;
-      });
+    try {
+      if (isFile) {
+        // file branch
+        const data = await sendMessage(sessionId, 'file', language, input as File);
+        if (data.session_id) setSessionId(data.session_id);
+        setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
+        setMode('text');
+      } else {
+        // chat branch (streams)
+        const res = await sendMessage(sessionId, mode, language, input as string);
+        if (!res.body) return setLoading(false);
+        const source = res.headers.get('X-Source');
+        setMessages(m => [...m, { role:'bot', content:'', source, ts:Date.now() }]);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let done = false;
+        while (!done) {
+          const { value, done: d } = await reader.read();
+          done = d;
+          const chunk = dec.decode(value || new Uint8Array());
+          setMessages(msgs => {
+            const copy = [...msgs];
+            copy[copy.length-1].content += chunk;
+            return copy;
+          });
+        }
+      }
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const clearMessages=()=>{ setMessages([]); localStorage.removeItem('am_history'); };
+  const clearMessages = () => {
+    setMessages([]);
+    localStorage.removeItem('am_history');
+  };
 
-  return <ChatContext.Provider value={{
-    mode,messages,loading,error,language,
-    setLanguage,setMode,sessionId,setSessionId,
-    sendUserInput,clearMessages
-  }}>{children}</ChatContext.Provider>;
+  return (
+    <ChatContext.Provider
+      value={{
+        mode, messages, loading, error, language,
+        setLanguage, setMode, sessionId, sendUserInput, clearMessages
+      }}
+    >
+      {children}
+    </ChatContext.Provider>
+  );
 }
