@@ -5,6 +5,8 @@ from agents.rag_agent import handle_query
 from app.config import Settings
 import base64, asyncio
 
+from app.schemas import ChatRequest
+
 settings = Settings()
 router = APIRouter(tags=["chat"])
 
