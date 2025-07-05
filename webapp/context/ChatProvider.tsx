@@ -8,8 +8,11 @@ export type Mode = 'text' | 'voice' | 'image' | 'search';
 export interface Message {
   role: 'user' | 'bot';
   content: string;
+  /** optional URL of an ingested image (RAG result) */
   imageUrl?: string;
+  /** optional source tag for RAG / web fallback */
   source?: string | null;
+  /** timestamp for display */
   ts: number;
 }
 

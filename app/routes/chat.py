@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from agents.rag_agent import handle_query
+from agents import search_agent
 from app.config import Settings
 import base64, asyncio
 
@@ -21,7 +22,12 @@ async def unified_chat(payload: ChatRequest):
     if mode=="voice":
         pass
 
-    text,conf,src = handle_query(mode, content, payload.session_id, payload.lang)
+    if mode == "search":
+        text = search_agent.handle_query(content)
+        conf = 1.0
+        src = "web"
+    else:
+        text, conf, src = handle_query(mode, content, payload.session_id, payload.lang)
 
     async def streamer():
         for tok in text.split():
