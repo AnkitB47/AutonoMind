@@ -101,6 +101,19 @@ async def debug_connection(request: Request):
         "timestamp": time.time()
     }
 
+# Session debug endpoint
+@app.get("/debug-session/{session_id}")
+async def debug_session(session_id: str):
+    """Debug endpoint to check session context and upload history."""
+    from agents.rag_agent import session_store
+    session_info = session_store.get(session_id, {})
+    return {
+        "session_id": session_id,
+        "session_info": session_info,
+        "has_session": session_id in session_store,
+        "timestamp": time.time()
+    }
+
 # Register routers
 app.include_router(upload.router)
 app.include_router(chat.router)

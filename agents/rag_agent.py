@@ -28,6 +28,18 @@ def _session_ns(base: str, sid: str|None) -> str:
 def _clean(txt: str) -> str:
     return txt.replace("<pad>", "").replace("<eos>", "").strip()
 
+def _is_image_query(query: str) -> bool:
+    """Detect if a text query should be treated as an image query."""
+    image_keywords = [
+        'image', 'picture', 'photo', 'look', 'see', 'show', 'display',
+        'what is this', 'what does this look like', 'describe this', 'similar',
+        'appears', 'contains', 'shows', 'depicts', 'represents', 'illustrates',
+        'this image', 'this picture', 'this photo', 'the image', 'the picture'
+    ]
+    
+    lower_query = query.lower()
+    return any(keyword in lower_query for keyword in image_keywords)
+
 async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
     """Process uploaded file with comprehensive error handling."""
     temp_path = None
@@ -107,9 +119,13 @@ async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
             logger.warning(f"Unsupported file format: {suffix}")
             raise Exception(f"Unsupported format: {suffix}")
 
-        # Store session
-        session_store[sid] = {"text": ""}
-        logger.info(f"Session stored: {sid}")
+        # Store session with upload context
+        session_store[sid] = {
+            "text": "",
+            "last_upload_type": "pdf" if suffix == "pdf" else "image",
+            "last_upload_name": name
+        }
+        logger.info(f"Session stored: {sid} with upload type: {session_store[sid]['last_upload_type']}")
 
         return msg, sid
 
@@ -169,27 +185,59 @@ def save_memory(q:str, a:str, session_id:str|None=None):
     if session_id: memory_cache[session_id].append(entry)
 
 def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[str,float,str|None]:
+    logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
+    
     # 1) image mode → CLIP first then OCR
     if mode=="image":
-        data=base64.b64decode(content)
-        # CLIP
-        clip_hits = search_text("", namespace=_session_ns("image", session_id), k=1)
-        if clip_hits:
-            return clip_hits[0]["url"], clip_hits[0]["score"], "image"
-        # OCR fallback
-        return extract_image_text(tempfile.NamedTemporaryFile(delete=False).name), 1.0, "ocr"
+        logger.info("Processing as image query")
+        try:
+            data=base64.b64decode(content)
+            # CLIP
+            clip_hits = search_text("", namespace=_session_ns("image", session_id), k=1)
+            if clip_hits:
+                logger.info(f"CLIP search found {len(clip_hits)} results")
+                return clip_hits[0]["url"], clip_hits[0]["score"], "image"
+            # OCR fallback
+            logger.info("No CLIP results, using OCR fallback")
+            return extract_image_text(tempfile.NamedTemporaryFile(delete=False).name), 1.0, "ocr"
+        except Exception as e:
+            logger.error(f"Image query processing failed: {str(e)}")
+            # Fall back to text-based search
+            mode = "text"
 
     # 2) voice = text
     if mode=="voice":
         # assume content already transcribed upstream
         pass
 
-    # 3) text/search/pdf → RAG
-    raw = session_store.get(session_id, {}).get("text","")
+    # 3) text/search/pdf → RAG with smart routing
+    logger.info("Processing as text query")
+    
+    # Check if this should be treated as an image query based on content and session context
+    session_info = session_store.get(session_id, {})
+    last_upload_type = session_info.get("last_upload_type")
+    
+    should_use_image_search = (
+        last_upload_type == "image" and 
+        _is_image_query(content)
+    )
+    
+    if should_use_image_search:
+        logger.info("Detected image-related query, prioritizing image search")
+        # Search image content first
+        image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
+        if image_hits:
+            logger.info(f"Image search found {len(image_hits)} results")
+            # Return the best image match
+            best_hit = max(image_hits, key=lambda x: x["score"])
+            return best_hit["url"], best_hit["score"], "image"
+    
+    # Standard RAG processing
+    raw = session_info.get("text","")
     combined = f"{raw}\nUser: {content}"
     excerpts,conf,src = query_with_confidence(combined, session_id)
     answer = rewrite_answer(excerpts, content, lang)
     # update memory + session
     save_memory(content, answer, session_id)
-    session_store[session_id]={"text": combined + f"\nBot: {answer}"}
+    session_store[session_id]={"text": combined + f"\nBot: {answer}", "last_upload_type": last_upload_type}
     return answer, conf, src

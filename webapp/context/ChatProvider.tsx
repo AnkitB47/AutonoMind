@@ -45,6 +45,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return crypto.randomUUID();
     return localStorage.getItem('am_session') || crypto.randomUUID();
   });
+  // Track the last uploaded file type to preserve context
+  const [lastUploadType, setLastUploadType] = useState<'pdf' | 'image' | null>(null);
 
   useEffect(() => {
     // Test API connectivity on mount
@@ -58,6 +60,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('am_history', JSON.stringify(messages));
     localStorage.setItem('am_session', sessionId);
   }, [messages, sessionId]);
+
+  // Helper function to detect if a query should be treated as an image query
+  const shouldTreatAsImageQuery = (query: string): boolean => {
+    if (lastUploadType !== 'image') return false;
+    
+    const imageKeywords = [
+      'image', 'picture', 'photo', 'photo', 'look', 'see', 'show', 'display',
+      'what is this', 'what does this look like', 'describe this', 'similar',
+      'appears', 'contains', 'shows', 'depicts', 'represents', 'illustrates'
+    ];
+    
+    const lowerQuery = query.toLowerCase();
+    return imageKeywords.some(keyword => lowerQuery.includes(keyword));
+  };
 
   const sendUserInput = async (input: string|File|Blob) => {
     const isFile = input instanceof File;
@@ -88,10 +104,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         console.debug('Upload response:', data);
         if (data.session_id) setSessionId(data.session_id);
         setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
-        setMode('text');
+        
+        // Determine file type and preserve context
+        const fileName = input.name.toLowerCase();
+        if (fileName.endsWith('.pdf')) {
+          setLastUploadType('pdf');
+          setMode('text'); // PDF uploads stay in text mode
+        } else if (fileName.match(/\.(png|jpg|jpeg|gif|webp)$/)) {
+          setLastUploadType('image');
+          setMode('image'); // Image uploads switch to image mode for follow-up queries
+        }
       } else {
         // chat branch (streams) - use /chat endpoint
-        const res = await sendMessage(sessionId, mode, language, input as string);
+        // Determine the appropriate mode for the query
+        let queryMode = mode;
+        if (mode === 'text' && shouldTreatAsImageQuery(input as string)) {
+          queryMode = 'image';
+          console.debug('Treating text query as image query:', input);
+        }
+        
+        const res = await sendMessage(sessionId, queryMode, language, input as string);
         if (!res.body) return setLoading(false);
         const source = res.headers.get('X-Source');
         const sessionIdHeader = res.headers.get('X-Session-ID');
@@ -121,6 +153,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const clearMessages = () => {
     setMessages([]);
+    setLastUploadType(null);
     localStorage.removeItem('am_history');
   };
 

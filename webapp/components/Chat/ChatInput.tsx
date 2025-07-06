@@ -50,8 +50,23 @@ export default function ChatInput() {
     }
   };
 
+  const getModeLabel = () => {
+    switch (mode) {
+      case 'text': return 'Text Chat';
+      case 'voice': return 'Voice Input';
+      case 'image': return 'Image Upload';
+      case 'search': return 'Web Search';
+      default: return 'Text Chat';
+    }
+  };
+
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      {/* Mode indicator */}
+      <div className="mb-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+        Mode: {getModeLabel()}
+      </div>
+
       {mode === 'text' && (
         <div className="flex gap-2">
           <input
@@ -108,16 +123,32 @@ export default function ChatInput() {
       )}
 
       <div className="mt-2 flex justify-around text-muted-foreground">
-        <button onClick={() => setMode('text')} aria-label="text">
+        <button 
+          onClick={() => setMode('text')} 
+          aria-label="text"
+          className={`p-2 rounded ${mode === 'text' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+        >
           <Send size={16} />
         </button>
-        <button onClick={() => setMode('voice')} aria-label="voice">
+        <button 
+          onClick={() => setMode('voice')} 
+          aria-label="voice"
+          className={`p-2 rounded ${mode === 'voice' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+        >
           <Mic size={16} />
         </button>
-        <button onClick={() => setMode('image')} aria-label="image/pdf">
+        <button 
+          onClick={() => setMode('image')} 
+          aria-label="image/pdf"
+          className={`p-2 rounded ${mode === 'image' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+        >
           <ImgIcon size={16} />
         </button>
-        <button onClick={() => setMode('search')} aria-label="search">
+        <button 
+          onClick={() => setMode('search')} 
+          aria-label="search"
+          className={`p-2 rounded ${mode === 'search' ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+        >
           <Search size={16} />
         </button>
       </div>
