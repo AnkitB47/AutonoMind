@@ -82,6 +82,7 @@ docker build --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-domain.com \
 - `GET /api/ping` - Health check
 - `GET /api/debug-env` - Environment verification
 - `POST /api/debug-chat` - Chat endpoint verification
+- `GET /api/debug-connection` - Connection details
 
 ## Session Management
 
@@ -122,23 +123,61 @@ Test API connectivity manually:
 node test_api_connectivity.js http://localhost:3000
 ```
 
-## Troubleshooting
+Run comprehensive production tests:
 
-### Production Upload Failures
+```bash
+node test_production_api.js https://your-app.fly.dev
+```
 
-If file uploads fail in production with "Failed to fetch":
+## Production Troubleshooting
 
-1. **Verify API routing**: Check that `/api/debug-env` returns a valid response
-2. **Check Next.js rewrites**: Ensure `next.config.js` has the correct proxy configuration
-3. **Verify FastAPI is running**: Check container logs for FastAPI startup messages
-4. **Test debug endpoints**: Use `/api/debug-upload` to verify upload routing
+### Upload Failures (ECONNRESET)
 
-### Common Issues
+If file uploads fail in production with "Failed to fetch" or ECONNRESET:
 
-- **CORS errors**: FastAPI CORS is configured to allow all origins
-- **Mixed content**: Ensure HTTPS is used consistently in production
-- **Network timeouts**: Large files may need chunked uploads
-- **Session persistence**: Verify `session_id` is being passed correctly
+1. **Check FastAPI startup logs**:
+   ```bash
+   fly logs | grep "FastAPI started successfully"
+   ```
+
+2. **Verify Uvicorn configuration**:
+   - Ensure `--proxy-headers` and `--timeout-keep-alive=75` are set
+   - Check that FastAPI is fully ready before Next.js starts
+
+3. **Test upload endpoint directly**:
+   ```bash
+   curl -X POST -F "file=@test.pdf" -F "session_id=test" https://your-app.fly.dev/api/debug-upload
+   ```
+
+4. **Check file size limits**:
+   - PDFs: 50MB maximum
+   - Images: 10MB maximum
+
+### Chat Hanging "Thinking..."
+
+If chat hangs indefinitely:
+
+1. **Check FastAPI logs for errors**:
+   ```bash
+   fly logs | grep "rag_agent"
+   ```
+
+2. **Verify session management**:
+   ```bash
+   curl https://your-app.fly.dev/api/debug-env
+   ```
+
+3. **Test chat endpoint**:
+   ```bash
+   curl -X POST https://your-app.fly.dev/api/debug-chat
+   ```
+
+### Common Production Issues
+
+- **Race conditions**: FastAPI must be fully ready before Next.js starts
+- **File size limits**: Large files may timeout without proper configuration
+- **Memory issues**: PDF processing can be memory-intensive
+- **Network timeouts**: RunPod proxy has connection limits
 
 ### Debug Commands
 
@@ -154,4 +193,28 @@ curl http://localhost:3000/api/debug-env
 
 # Test file upload
 curl -X POST -F "file=@test.pdf" -F "session_id=test" http://localhost:3000/api/debug-upload
+
+# Check connection details
+curl http://localhost:3000/api/debug-connection
+
+# Production verification
+curl https://your-app.fly.dev/api/ping
+curl https://your-app.fly.dev/api/debug-env
 ```
+
+### Log Analysis
+
+Key log patterns to monitor:
+
+- `✅ FastAPI started successfully on port 8000`
+- `✅ Upload endpoint verified`
+- `Upload request: filename=... size=... session_id=...`
+- `Processing file: ... for session: ...`
+- `Upload successful: ... for session: ...`
+
+### Performance Optimization
+
+- **File size limits**: Enforce client-side file size validation
+- **Concurrent uploads**: Limit to 1 upload at a time
+- **Memory monitoring**: Watch for memory leaks in PDF processing
+- **Connection pooling**: Uvicorn handles multiple concurrent requests

@@ -1,6 +1,6 @@
 # agents/rag_agent.py
 from __future__ import annotations
-import base64, os, tempfile, time, inspect
+import base64, os, tempfile, time, inspect, logging
 from uuid import uuid4
 from collections import defaultdict
 from cachetools import TTLCache
@@ -14,6 +14,9 @@ from agents import search_agent, translate_agent
 from models.gemini_vision import extract_image_text, summarize_text_gemini
 from app.config import Settings
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 settings = Settings()
 DEFAULT_SESSION_TTL = 3600
 session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
@@ -26,32 +29,101 @@ def _clean(txt: str) -> str:
     return txt.replace("<pad>", "").replace("<eos>", "").strip()
 
 async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
-    sid = session_id or str(uuid4())
-    name = getattr(file, "filename", getattr(file, "name", "upload"))
-    suffix = name.rsplit(".",1)[-1].lower()
-    data = await file.read() if inspect.iscoroutinefunction(file.read) else file.read()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
-        tmp.write(data); path = tmp.name
+    """Process uploaded file with comprehensive error handling."""
+    temp_path = None
+    try:
+        sid = session_id or str(uuid4())
+        name = getattr(file, "filename", getattr(file, "name", "upload"))
+        suffix = name.rsplit(".",1)[-1].lower()
 
-    if suffix=="pdf":
-        loader = PyPDFLoader(path); docs = loader.load()
-        splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        chunks = [c for d in docs for c in splitter.split_text(d.page_content)]
-        for chunk in chunks:
-            ingest_pdf_text_to_pinecone(chunk, namespace=_session_ns("pdf", sid))
-            ingest_text_to_faiss(chunk, namespace=_session_ns("pdf", sid))
-        msg="✅ PDF ingested"
-    elif suffix in {"png","jpg","jpeg","gif","webp"}:
-        text = extract_image_text(path)
-        ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
-        stored = ingest_clip_image(path, namespace=_session_ns("image", sid))
-        msg="✅ Image ingested"
-    else:
-        os.remove(path); return "❌ Unsupported format", sid
+        logger.info(f"Processing file: {name} (suffix: {suffix}) for session: {sid}")
 
-    os.remove(path)
-    session_store[sid] = {"text": ""}
-    return msg, sid
+        # Read file data with error handling
+        try:
+            data = await file.read() if inspect.iscoroutinefunction(file.read) else file.read()
+            logger.info(f"Read {len(data)} bytes from file: {name}")
+        except Exception as e:
+            logger.error(f"Failed to read file {name}: {str(e)}")
+            raise Exception(f"File read failed: {str(e)}")
+
+        # Create temporary file
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{suffix}") as tmp:
+                tmp.write(data)
+                temp_path = tmp.name
+            logger.info(f"Created temporary file: {temp_path}")
+        except Exception as e:
+            logger.error(f"Failed to create temporary file: {str(e)}")
+            raise Exception(f"Temporary file creation failed: {str(e)}")
+
+        # Process based on file type
+        if suffix == "pdf":
+            logger.info(f"Processing PDF: {name}")
+            try:
+                loader = PyPDFLoader(temp_path)
+                docs = loader.load()
+                logger.info(f"Loaded {len(docs)} pages from PDF")
+
+                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+                chunks = [c for d in docs for c in splitter.split_text(d.page_content)]
+                logger.info(f"Created {len(chunks)} text chunks")
+
+                for i, chunk in enumerate(chunks):
+                    try:
+                        ingest_pdf_text_to_pinecone(chunk, namespace=_session_ns("pdf", sid))
+                        ingest_text_to_faiss(chunk, namespace=_session_ns("pdf", sid))
+                        if i % 10 == 0:  # Log progress every 10 chunks
+                            logger.info(f"Processed {i+1}/{len(chunks)} chunks")
+                    except Exception as e:
+                        logger.error(f"Failed to ingest chunk {i}: {str(e)}")
+                        # Continue with other chunks
+
+                msg = "✅ PDF ingested"
+                logger.info(f"PDF processing completed: {msg}")
+
+            except Exception as e:
+                logger.error(f"PDF processing failed: {str(e)}")
+                raise Exception(f"PDF processing failed: {str(e)}")
+
+        elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
+            logger.info(f"Processing image: {name}")
+            try:
+                text = extract_image_text(temp_path)
+                logger.info(f"Extracted text from image: {len(text)} characters")
+
+                ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
+                logger.info("Text ingested to FAISS")
+
+                stored = ingest_clip_image(temp_path, namespace=_session_ns("image", sid))
+                logger.info("Image ingested to CLIP")
+
+                msg = "✅ Image ingested"
+                logger.info(f"Image processing completed: {msg}")
+
+            except Exception as e:
+                logger.error(f"Image processing failed: {str(e)}")
+                raise Exception(f"Image processing failed: {str(e)}")
+        else:
+            logger.warning(f"Unsupported file format: {suffix}")
+            raise Exception(f"Unsupported format: {suffix}")
+
+        # Store session
+        session_store[sid] = {"text": ""}
+        logger.info(f"Session stored: {sid}")
+
+        return msg, sid
+
+    except Exception as e:
+        logger.error(f"process_file failed: {str(e)}", exc_info=True)
+        raise
+    finally:
+        # Clean up temporary file
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+                logger.info(f"Cleaned up temporary file: {temp_path}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary file {temp_path}: {str(e)}")
 
 def _search_all(text:str, sid:str, include_mem:bool) -> tuple[str,float,str|None]:
     ranked = []

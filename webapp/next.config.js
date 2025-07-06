@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      bodySizeLimit: "10mb",
+      bodySizeLimit: "50mb",
     },
   },
   async rewrites() {
@@ -13,6 +13,12 @@ const nextConfig = {
         destination: 'http://localhost:8000/:path*',
       },
     ];
+  },
+  serverRuntimeConfig: {
+    apiBaseUrl: 'http://localhost:8000',
+  },
+  publicRuntimeConfig: {
+    apiBaseUrl: '/api',
   },
 };
 

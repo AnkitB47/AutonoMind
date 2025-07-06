@@ -32,6 +32,8 @@ ENV NEXT_PUBLIC_FASTAPI_URL=${NEXT_PUBLIC_FASTAPI_URL}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONPATH=/workspace
 ENV FAISS_INDEX_PATH=/data/vector.index
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /workspace
 
 # 1) System packages and Node.js runtime
@@ -60,8 +62,16 @@ COPY --from=frontend-builder /build/webapp ./webapp
 # 5) Ensure FAISS index directory exists
 RUN mkdir -p /data
 
-# 6) Expose ports for FastAPI (8000) and Next.js (3000)
+# 6) Create health check script
+RUN echo '#!/bin/bash\ncurl -f http://localhost:8000/ping || exit 1' > /healthcheck.sh && \
+    chmod +x /healthcheck.sh
+
+# 7) Expose ports for FastAPI (8000) and Next.js (3000)
 EXPOSE 8000 3000
 
-# 7) Launch FastAPI and Next.js via entrypoint script
+# 8) Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD /healthcheck.sh
+
+# 9) Launch FastAPI and Next.js via entrypoint script
 CMD ["/entrypoint.sh"]

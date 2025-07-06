@@ -23,18 +23,47 @@ echo "window.RUNTIME_FASTAPI_URL=\"${NEXT_PUBLIC_FASTAPI_URL}\";" > webapp/publi
 echo "-> Using FASTAPI URL: $NEXT_PUBLIC_FASTAPI_URL (for SSR only)" >&2
 echo "-> Client requests will use /api proxy to localhost:8000" >&2
 
-uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+# Start FastAPI with production-optimized Uvicorn settings
+echo "Starting FastAPI with production settings..." >&2
+uvicorn app.main:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --proxy-headers \
+  --forwarded-allow-ips="*" \
+  --timeout-keep-alive=75 \
+  --limit-concurrency=1000 \
+  --limit-max-requests=10000 \
+  --backlog=2048 \
+  --workers=1 \
+  --log-level=info &
 PID=$!
-for i in {1..20}; do
+
+# Wait for FastAPI to be fully ready with multiple health checks
+echo "Waiting for FastAPI to be ready..." >&2
+for i in {1..30}; do
   if curl -fs http://localhost:8000/ping >/dev/null 2>&1; then
-    echo "FastAPI started successfully on port 8000" >&2
-    break
+    echo "✅ FastAPI started successfully on port 8000" >&2
+    # Additional verification - test upload endpoint
+    if curl -fs -X POST http://localhost:8000/debug-upload -F "file=@/dev/null" -F "session_id=startup-test" >/dev/null 2>&1; then
+      echo "✅ Upload endpoint verified" >&2
+      break
+    else
+      echo "⚠️  FastAPI responding but upload endpoint not ready, continuing..." >&2
+    fi
   fi
   if ! kill -0 $PID 2>/dev/null; then
-    echo "FastAPI failed to start" >&2
+    echo "❌ FastAPI failed to start" >&2
     exit 1
   fi
-  sleep 1
- done
+  sleep 2
+done
+
+if [ $i -eq 30 ]; then
+  echo "❌ FastAPI failed to become ready within 60 seconds" >&2
+  exit 1
+fi
+
+# Start Next.js production server
+echo "Starting Next.js production server..." >&2
 cd webapp
 exec npx next start --hostname 0.0.0.0 --port 3000
