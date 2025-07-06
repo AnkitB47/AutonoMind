@@ -19,7 +19,7 @@ fi
 # Propagate the backend URL for SSR and the browser bundle
 export NEXT_PUBLIC_FASTAPI_URL="$FASTAPI_URL"
 mkdir -p webapp/public
-echo "window.RUNTIME_FASTAPI_URL=\"${NEXT_PUBLIC_FASTAPI_URL}\"" > webapp/public/env.js
+echo "window.RUNTIME_FASTAPI_URL=\"${NEXT_PUBLIC_FASTAPI_URL}\";" > webapp/public/env.js
 echo "-> Using FASTAPI URL: $NEXT_PUBLIC_FASTAPI_URL" >&2
 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 &

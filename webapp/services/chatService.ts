@@ -1,6 +1,6 @@
 import getApiBase from '../utils/getApiBase';
 
-export type Mode = 'text' | 'voice' | 'image' | 'search' | 'file';
+export type Mode = 'text' | 'voice' | 'image' | 'search';
 
 export async function sendMessage(
   sessionId: string,
@@ -8,7 +8,7 @@ export async function sendMessage(
   lang: string,
   content: string | File | Blob
 ) {
-  // 1) Files (images & PDFs) go to /upload
+  // Files (images & PDFs) go to /upload endpoint
   if (content instanceof File) {
     const form = new FormData();
     form.append('file', content);
@@ -20,7 +20,7 @@ export async function sendMessage(
     return res.json();
   }
 
-  // 2) Everything else streams from /chat
+  // Everything else streams from /chat endpoint
   const payload = typeof content === 'string'
     ? content
     : await blobToBase64(content);

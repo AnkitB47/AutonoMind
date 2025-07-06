@@ -43,6 +43,13 @@ export default function ChatInput() {
     }
   };
 
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       {mode === 'text' && (
@@ -51,6 +58,7 @@ export default function ChatInput() {
             className="flex-1 rounded border px-3 py-2"
             value={text}
             onChange={e => setText(e.target.value)}
+            onKeyPress={handleKeyPress}
             placeholder="Type your message…"
           />
           <Button onClick={handleSend} aria-label="send">
@@ -90,6 +98,7 @@ export default function ChatInput() {
             className="flex-1 rounded border px-3 py-2"
             value={text}
             onChange={e => setText(e.target.value)}
+            onKeyPress={handleKeyPress}
             placeholder="Search the web…"
           />
           <Button onClick={handleSend} aria-label="search">

@@ -67,7 +67,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       if (isFile) {
-        // file branch
+        // file branch - upload to /upload endpoint
         const url = `${getApiBase()}/upload`;
         console.debug('Uploading to', url);
         const form = new FormData();
@@ -79,10 +79,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
         setMode('text');
       } else {
-        // chat branch (streams)
+        // chat branch (streams) - use /chat endpoint
         const res = await sendMessage(sessionId, mode, language, input as string);
         if (!res.body) return setLoading(false);
         const source = res.headers.get('X-Source');
+        const sessionIdHeader = res.headers.get('X-Session-ID');
+        if (sessionIdHeader) setSessionId(sessionIdHeader);
         setMessages(m => [...m, { role:'bot', content:'', source, ts:Date.now() }]);
         const reader = res.body.getReader();
         const dec = new TextDecoder();

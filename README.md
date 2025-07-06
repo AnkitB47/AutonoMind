@@ -1,6 +1,15 @@
 # AutonoMind
 
-This project contains a FastAPI backend and a Next.js frontend.
+This project contains a FastAPI backend and a Next.js frontend with seamless communication.
+
+## Architecture
+
+The application uses a unified API architecture where:
+- Next.js frontend proxies `/api/*` requests to FastAPI backend (port 8000)
+- File uploads go to `/api/upload` and are processed by `agents/rag_agent.process_file`
+- Chat messages stream through `/api/chat` and call `agents/rag_agent.handle_query`
+- RAG answers are post-processed via `rewrite_answer()` for conciseness
+- All responses include `X-Source` and `X-Session-ID` headers
 
 ## Starting the backend
 
@@ -9,81 +18,99 @@ Make sure you launch the FastAPI application from `app/main.py` so that all rout
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
-The server exposes a `/ping` endpoint for simple health checks.
+The server exposes a `/ping` endpoint for simple health checks and `/debug-env` for environment verification.
 
 ## Frontend configuration
 
-The frontend discovers the backend URL at runtime. `entrypoint.sh` writes
-`webapp/public/env.js` containing `window.RUNTIME_FASTAPI_URL` which points to
-the FastAPI proxy. During development, Next.js proxies `/api/*` to your local
-backend, while in production the app fetches this runtime variable.
+The frontend discovers the backend URL at runtime using the following priority:
+1. `window.RUNTIME_FASTAPI_URL` (set by `entrypoint.sh` at runtime)
+2. `process.env.NEXT_PUBLIC_FASTAPI_URL` (build-time environment)
+3. `/api` (development proxy fallback)
 
-If `RUNPOD_POD_ID` is present the entrypoint derives the URL as
-`https://$RUNPOD_POD_ID-8000.proxy.runpod.net` and exports
-`NEXT_PUBLIC_FASTAPI_URL` for server‑side rendering. No build-time argument is
-required.
+The `entrypoint.sh` script writes `webapp/public/env.js` containing `window.RUNTIME_FASTAPI_URL` which points to the FastAPI service. During development, Next.js proxies `/api/*` to your local backend, while in production the app fetches this runtime variable.
 
-Example Fly deployment:
+If `RUNPOD_POD_ID` is present the entrypoint derives the URL as `https://$RUNPOD_POD_ID-8000.proxy.runpod.net` and exports `NEXT_PUBLIC_FASTAPI_URL` for server‑side rendering.
 
-**Do not append `:3000` to the public URL.** The Fly proxy maps incoming
-traffic on ports 80 and 443 to the container's internal port 3000, so your
-frontend is available directly at `https://your-app.fly.dev`.
+## Development
+
+For local development, the frontend will automatically proxy API calls to the backend:
 
 ```bash
-fly deploy -e NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev
+# Terminal 1: Start FastAPI backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Terminal 2: Start Next.js frontend
+cd webapp
+npm run dev
 ```
 
-When `RUNPOD_URL` is configured on the backend, heavy tasks like audio
-transcription and image OCR will be delegated to that remote pod.
+The frontend will be available at `http://localhost:3000` and will proxy `/api/*` requests to the FastAPI backend.
 
-To confirm the frontend picked up the correct backend URL, hit `/api/debug-env`
-after deployment. It should return the value of `NEXT_PUBLIC_FASTAPI_URL`.
+## Production Deployment
 
-The container exposes `/ping` on port 8000 which can be used for health checks
-before starting the frontend. Note that the reverse proxy times out requests
-after about **100 seconds**, so large uploads should be split into chunks or use
-periodic progress calls to keep the connection alive
+### Fly.io Deployment
 
-Example Fly deployment:
-
-**Do not append `:3000` to the public URL.** The Fly proxy maps
-incoming traffic on ports 80 and 443 to the container's internal port 3000,
-so your frontend is available directly at `https://your-app.fly.dev`.
+Example Fly deployment with proper FastAPI URL configuration:
 
 ```bash
 fly deploy --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev \
   -e NEXT_PUBLIC_FASTAPI_URL=https://your-app.fly.dev
 ```
 
-When `RUNPOD_URL` is configured on the backend, heavy tasks like audio
-transcription and image OCR will be delegated to that remote pod.
+**Important:** Do not append `:3000` to the public URL. The Fly proxy maps incoming traffic on ports 80 and 443 to the container's internal port 3000, so your frontend is available directly at `https://your-app.fly.dev`.
+
+### Docker Deployment
+
+The Dockerfiles accept the `NEXT_PUBLIC_FASTAPI_URL` build argument:
 
 ```bash
-NEXT_PUBLIC_FASTAPI_URL=http://localhost:8000 npm run dev
+docker build --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-domain.com \
+  -f docker/Dockerfile.cpu -t autonomind .
 ```
 
-A sample `.env` file is provided at `webapp/.env.example`.
+## API Endpoints
 
-## Using the API manually
+### File Upload
+- `POST /api/upload` - Upload PDFs or images for RAG processing
+- `POST /api/debug-upload` - Debug endpoint for troubleshooting uploads
 
-Remember that text, voice and image inputs share the `/input` prefix:
+### Chat
+- `POST /api/chat` - Stream chat messages with RAG processing
+- Supports modes: `text`, `voice`, `image`, `search`
 
-- `POST /input/text`
-- `POST /input/voice`
-- `POST /input/image`
+### Health & Debug
+- `GET /api/ping` - Health check
+- `GET /api/debug-env` - Environment verification
 
-`/input/text` and `/input/search` run a regular web search for the given query.
-`/input/voice` returns the transcribed text of the uploaded audio file.
-Use `/chat` to question any PDFs or images you've uploaded previously.
+## Session Management
 
-Upload PDFs or images for retrieval using `POST /upload` and send chat messages via `POST /chat`.
-If the request omits a `session_id`, the server now generates a new one automatically and
-returns it in the response. Keep this id and include it in later requests so your uploaded
-files can be queried. Each session id remains valid for roughly an hour.
+Each chat session has a unique `session_id` that:
+- Is automatically generated if not provided
+- Remains valid for approximately 1 hour
+- Links uploaded files to chat conversations
+- Is returned in response headers as `X-Session-ID`
 
-Images uploaded for CLIP similarity search are stored under the `/images`
-path exposed by the API. Results returned by `/search/image-similarity` use
-these URLs so they can be viewed directly in the browser.
-When you POST an image to `/chat`, the server now tries an image similarity
-lookup first and only falls back to OCR-based search when no strong match is
-found.
+## File Processing
+
+Uploaded files are processed as follows:
+- **PDFs**: Text extraction, chunking, and vector storage
+- **Images**: OCR text extraction and CLIP similarity indexing
+- **Audio**: Whisper transcription to text
+
+All processed content is stored in vector databases for semantic search and retrieval.
+
+## Environment Variables
+
+- `NEXT_PUBLIC_FASTAPI_URL`: Backend URL for client-side requests
+- `MIN_CONFIDENCE`: Minimum confidence threshold for RAG results
+- `GEMINI_API_KEY`: Required for image processing and text summarization
+- `OPENAI_API_KEY`: Required for chat completions
+- `PINECONE_API_KEY`: Required for vector storage (optional)
+
+## Testing
+
+Run the test suite to verify all endpoints work correctly:
+
+```bash
+pytest tests/test_endpoints.py -q
+```

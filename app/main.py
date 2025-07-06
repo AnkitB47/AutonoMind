@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routes import chat, upload
@@ -31,6 +31,19 @@ def ping() -> dict:
 @app.get("/debug-env")
 def debug_env() -> dict:
     return {"NEXT_PUBLIC_FASTAPI_URL": settings.NEXT_PUBLIC_FASTAPI_URL}
+
+# Debug upload endpoint for troubleshooting
+@app.post("/debug-upload")
+async def debug_upload(file: UploadFile = File(...), session_id: str = ""):
+    """Debug endpoint to log incoming file size and session_id."""
+    file_size = len(await file.read())
+    print(f"DEBUG: File upload - name: {file.filename}, size: {file_size}, session_id: {session_id}")
+    return {
+        "filename": file.filename,
+        "size": file_size,
+        "session_id": session_id,
+        "content_type": file.content_type
+    }
 
 # Register routers
 app.include_router(upload.router)
