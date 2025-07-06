@@ -10,6 +10,8 @@ export interface Message {
   content: string;
   /** optional URL of an ingested image (RAG result) */
   imageUrl?: string;
+  /** optional description for image queries */
+  description?: string;
   /** optional source tag for RAG / web fallback */
   source?: string | null;
   /** timestamp for display */
@@ -128,19 +130,36 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const source = res.headers.get('X-Source');
         const sessionIdHeader = res.headers.get('X-Session-ID');
         if (sessionIdHeader) setSessionId(sessionIdHeader);
-        setMessages(m => [...m, { role:'bot', content:'', source, ts:Date.now() }]);
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let done = false;
-        while (!done) {
-          const { value, done: d } = await reader.read();
-          done = d;
-          const chunk = dec.decode(value || new Uint8Array());
-          setMessages(msgs => {
-            const copy = [...msgs];
-            copy[copy.length-1].content += chunk;
-            return copy;
-          });
+        
+        // Check if response is JSON (image query result)
+        const contentType = res.headers.get('Content-Type');
+        if (contentType && contentType.includes('application/json')) {
+          // Handle structured JSON response for image queries
+          const responseData = await res.json();
+          setMessages(m => [...m, { 
+            role: 'bot', 
+            content: '', 
+            imageUrl: responseData.image_url,
+            description: responseData.description,
+            source, 
+            ts: Date.now() 
+          }]);
+        } else {
+          // Handle streaming text response
+          setMessages(m => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let done = false;
+          while (!done) {
+            const { value, done: d } = await reader.read();
+            done = d;
+            const chunk = dec.decode(value || new Uint8Array());
+            setMessages(msgs => {
+              const copy = [...msgs];
+              copy[copy.length-1].content += chunk;
+              return copy;
+            });
+          }
         }
       }
     } catch (e: any) {

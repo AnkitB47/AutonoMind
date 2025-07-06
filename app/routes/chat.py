@@ -1,10 +1,10 @@
 # app/routes/chat.py
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 import agents.rag_agent as rag_agent
 from agents import search_agent
 from app.config import Settings
-import base64, asyncio
+import base64, asyncio, json
 
 from app.schemas import ChatRequest
 from models.whisper_runner import transcribe_audio
@@ -38,6 +38,23 @@ async def unified_chat(payload: ChatRequest):
         if mode == "text" and src and src != "web":
             text = rag_agent.rewrite_answer(text, content, payload.lang)
 
+    # Check if response is JSON (image query result)
+    try:
+        response_data = json.loads(text)
+        if isinstance(response_data, dict) and ("image_url" in response_data or "description" in response_data):
+            # Return structured JSON response for image queries
+            headers = {
+                "X-Session-ID": payload.session_id,
+                "X-Confidence": str(conf),
+                "X-Source": src or "",
+                "Content-Type": "application/json"
+            }
+            return JSONResponse(content=response_data, headers=headers)
+    except (json.JSONDecodeError, TypeError):
+        # Not JSON, continue with streaming text response
+        pass
+
+    # Standard streaming text response
     async def streamer():
         for tok in text.split():
             yield tok + " "

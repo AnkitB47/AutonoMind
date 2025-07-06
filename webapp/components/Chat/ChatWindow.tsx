@@ -20,13 +20,27 @@ export default function ChatWindow() {
         {messages.map((m, i) => (
           <ChatBubble key={i} isUser={m.role==='user'} source={m.source}>
             {m.imageUrl ? (
-              <img
-                src={`${getApiBase()}${m.imageUrl}`}
-                alt="RAG result"
-                className="max-w-xs rounded"
-              />
+              <div className="space-y-2">
+                <img
+                  src={`${getApiBase()}${m.imageUrl}`}
+                  alt="RAG result"
+                  className="max-w-xs rounded shadow-md"
+                />
+                {m.description && (
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    {m.description}
+                  </div>
+                )}
+              </div>
             ) : (
-              m.content
+              <div>
+                {m.content}
+                {m.description && (
+                  <div className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                    {m.description}
+                  </div>
+                )}
+              </div>
             )}
             <div className="text-xs opacity-50 mt-1">{new Date(m.ts).toLocaleTimeString()}</div>
           </ChatBubble>

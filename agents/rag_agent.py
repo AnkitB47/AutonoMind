@@ -1,6 +1,6 @@
 # agents/rag_agent.py
 from __future__ import annotations
-import base64, os, tempfile, time, inspect, logging
+import base64, os, tempfile, time, inspect, logging, json
 from uuid import uuid4
 from collections import defaultdict
 from cachetools import TTLCache
@@ -196,10 +196,21 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
             clip_hits = search_text("", namespace=_session_ns("image", session_id), k=1)
             if clip_hits:
                 logger.info(f"CLIP search found {len(clip_hits)} results")
-                return clip_hits[0]["url"], clip_hits[0]["score"], "image"
+                # Return structured JSON with image URL and description
+                response_data = {
+                    "image_url": clip_hits[0]["url"],
+                    "description": f"Similar image found with confidence: {clip_hits[0]['score']:.2f}"
+                }
+                return json.dumps(response_data), clip_hits[0]["score"], "image"
+            
             # OCR fallback
             logger.info("No CLIP results, using OCR fallback")
-            return extract_image_text(tempfile.NamedTemporaryFile(delete=False).name), 1.0, "ocr"
+            ocr_text = extract_image_text(tempfile.NamedTemporaryFile(delete=False).name)
+            response_data = {
+                "description": ocr_text,
+                "fallback": "No similar images found, showing OCR text instead"
+            }
+            return json.dumps(response_data), 1.0, "ocr"
         except Exception as e:
             logger.error(f"Image query processing failed: {str(e)}")
             # Fall back to text-based search
@@ -228,9 +239,13 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
         image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
         if image_hits:
             logger.info(f"Image search found {len(image_hits)} results")
-            # Return the best image match
+            # Return the best image match as structured JSON
             best_hit = max(image_hits, key=lambda x: x["score"])
-            return best_hit["url"], best_hit["score"], "image"
+            response_data = {
+                "image_url": best_hit["url"],
+                "description": f"Similar image found for query: '{content}' with confidence: {best_hit['score']:.2f}"
+            }
+            return json.dumps(response_data), best_hit["score"], "image"
     
     # Standard RAG processing
     raw = session_info.get("text","")
