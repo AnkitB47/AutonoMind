@@ -115,7 +115,7 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
     # 3) text/search/pdf → RAG
     raw = session_store.get(session_id, {}).get("text","")
     combined = f"{raw}\nUser: {content}"
-    excerpts,conf,src = query_pdf_image(combined, session_id)
+    excerpts,conf,src = query_with_confidence(combined, session_id)
     answer = rewrite_answer(excerpts, content, lang)
     # update memory + session
     save_memory(content, answer, session_id)

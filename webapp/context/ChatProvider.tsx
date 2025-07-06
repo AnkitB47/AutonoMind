@@ -47,6 +47,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    fetch('/api/debug-env')
+      .then(r => r.json())
+      .then(data => console.debug('debug-env', data))
+      .catch(e => console.error('debug-env', e));
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('am_history', JSON.stringify(messages));
     localStorage.setItem('am_session', sessionId);
   }, [messages, sessionId]);
@@ -61,7 +68,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       if (isFile) {
         // file branch
-        const data = await sendMessage(sessionId, 'file', language, input as File);
+        const url = `${getApiBase()}/upload`;
+        console.debug('Uploading to', url);
+        const form = new FormData();
+        form.append('file', input as File);
+        form.append('session_id', sessionId);
+        const res = await fetch(url, { method: 'POST', body: form });
+        const data = await res.json();
         if (data.session_id) setSessionId(data.session_id);
         setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
         setMode('text');
