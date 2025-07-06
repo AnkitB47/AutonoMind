@@ -30,7 +30,10 @@ def ping() -> dict:
 # Return the runtime backend URL to verify environment propagation
 @app.get("/debug-env")
 def debug_env() -> dict:
-    return {"NEXT_PUBLIC_FASTAPI_URL": settings.NEXT_PUBLIC_FASTAPI_URL}
+    return {
+        "NEXT_PUBLIC_FASTAPI_URL": settings.NEXT_PUBLIC_FASTAPI_URL,
+        "message": "FastAPI is reachable via proxy"
+    }
 
 # Debug upload endpoint for troubleshooting
 @app.post("/debug-upload")
@@ -42,7 +45,17 @@ async def debug_upload(file: UploadFile = File(...), session_id: str = ""):
         "filename": file.filename,
         "size": file_size,
         "session_id": session_id,
-        "content_type": file.content_type
+        "content_type": file.content_type,
+        "message": "Debug upload successful"
+    }
+
+# Debug chat endpoint for troubleshooting
+@app.post("/debug-chat")
+async def debug_chat():
+    """Debug endpoint to verify chat routing."""
+    return {
+        "message": "Chat endpoint is reachable",
+        "timestamp": "2024-01-01T00:00:00Z"
     }
 
 # Register routers

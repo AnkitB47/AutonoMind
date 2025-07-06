@@ -20,12 +20,14 @@ fi
 export NEXT_PUBLIC_FASTAPI_URL="$FASTAPI_URL"
 mkdir -p webapp/public
 echo "window.RUNTIME_FASTAPI_URL=\"${NEXT_PUBLIC_FASTAPI_URL}\";" > webapp/public/env.js
-echo "-> Using FASTAPI URL: $NEXT_PUBLIC_FASTAPI_URL" >&2
+echo "-> Using FASTAPI URL: $NEXT_PUBLIC_FASTAPI_URL (for SSR only)" >&2
+echo "-> Client requests will use /api proxy to localhost:8000" >&2
 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 PID=$!
 for i in {1..20}; do
   if curl -fs http://localhost:8000/ping >/dev/null 2>&1; then
+    echo "FastAPI started successfully on port 8000" >&2
     break
   fi
   if ! kill -0 $PID 2>/dev/null; then

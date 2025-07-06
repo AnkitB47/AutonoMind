@@ -81,6 +81,7 @@ docker build --build-arg NEXT_PUBLIC_FASTAPI_URL=https://your-domain.com \
 ### Health & Debug
 - `GET /api/ping` - Health check
 - `GET /api/debug-env` - Environment verification
+- `POST /api/debug-chat` - Chat endpoint verification
 
 ## Session Management
 
@@ -113,4 +114,44 @@ Run the test suite to verify all endpoints work correctly:
 
 ```bash
 pytest tests/test_endpoints.py -q
+```
+
+Test API connectivity manually:
+
+```bash
+node test_api_connectivity.js http://localhost:3000
+```
+
+## Troubleshooting
+
+### Production Upload Failures
+
+If file uploads fail in production with "Failed to fetch":
+
+1. **Verify API routing**: Check that `/api/debug-env` returns a valid response
+2. **Check Next.js rewrites**: Ensure `next.config.js` has the correct proxy configuration
+3. **Verify FastAPI is running**: Check container logs for FastAPI startup messages
+4. **Test debug endpoints**: Use `/api/debug-upload` to verify upload routing
+
+### Common Issues
+
+- **CORS errors**: FastAPI CORS is configured to allow all origins
+- **Mixed content**: Ensure HTTPS is used consistently in production
+- **Network timeouts**: Large files may need chunked uploads
+- **Session persistence**: Verify `session_id` is being passed correctly
+
+### Debug Commands
+
+```bash
+# Check if FastAPI is responding
+curl http://localhost:8000/ping
+
+# Test Next.js proxy
+curl http://localhost:3000/api/ping
+
+# Verify environment
+curl http://localhost:3000/api/debug-env
+
+# Test file upload
+curl -X POST -F "file=@test.pdf" -F "session_id=test" http://localhost:3000/api/debug-upload
 ```

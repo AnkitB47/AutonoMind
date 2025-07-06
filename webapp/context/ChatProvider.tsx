@@ -47,10 +47,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    // Test API connectivity on mount
     fetch('/api/debug-env')
       .then(r => r.json())
-      .then(data => console.debug('debug-env', data))
-      .catch(e => console.error('debug-env', e));
+      .then(data => console.debug('API connectivity test:', data))
+      .catch(e => console.error('API connectivity test failed:', e));
   }, []);
 
   useEffect(() => {
@@ -69,12 +70,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (isFile) {
         // file branch - upload to /upload endpoint
         const url = `${getApiBase()}/upload`;
-        console.debug('Uploading to', url);
+        console.debug('Uploading to', url, 'file:', input.name, 'size:', input.size);
         const form = new FormData();
         form.append('file', input as File);
         form.append('session_id', sessionId);
-        const res = await fetch(url, { method: 'POST', body: form });
+        
+        const res = await fetch(url, { 
+          method: 'POST', 
+          body: form,
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+        }
+        
         const data = await res.json();
+        console.debug('Upload response:', data);
         if (data.session_id) setSessionId(data.session_id);
         setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
         setMode('text');
@@ -101,7 +112,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (e: any) {
-      setError(e.message);
+      console.error('Error in sendUserInput:', e);
+      setError(e.message || 'An error occurred');
     } finally {
       setLoading(false);
     }

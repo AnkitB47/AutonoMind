@@ -33,3 +33,13 @@ app = "autonomind"
   [[services.ports]]
     port     = 443
     handlers = ["tls", "http"]
+
+# Health checks
+[[services.http_checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/api/ping"
+  protocol = "http"
+  tls_skip_verify = false

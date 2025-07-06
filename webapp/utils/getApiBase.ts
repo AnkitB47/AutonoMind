@@ -1,6 +1,5 @@
 export default function getApiBase(): string {
-  if (typeof window !== 'undefined' && (window as any).RUNTIME_FASTAPI_URL) {
-    return (window as any).RUNTIME_FASTAPI_URL;
-  }
-  return process.env.NEXT_PUBLIC_FASTAPI_URL || '/api';
+  // Always use /api for client-side requests to ensure Next.js rewrites work
+  // window.RUNTIME_FASTAPI_URL is only used for SSR or direct backend calls
+  return '/api';
 }
