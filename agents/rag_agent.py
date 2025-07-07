@@ -207,21 +207,20 @@ def search_similar_images_by_image(data: bytes, session_id: str, k: int = 3):
     hits = search_image(data, namespace=_session_ns("image", session_id), k=k)
     return hits
 
-async def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[str,float,str|None]:
+async def handle_query(mode: str, content: str, session_id: str, lang: str = "en") -> tuple[str, float, str | None]:
     logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
+    session_info = session_store.get(session_id, {})
+    last_upload_type = session_info.get("last_upload_type")
+    raw = session_info.get("text", "")
 
-    # 1) image mode → CLIP first then OCR
-    if mode=="image":
-        logger.info("Processing as image query")
+    # 1) Image mode: CLIP image-to-image, else OCR fallback
+    if mode == "image":
         try:
             data = _sanitize_b64(content)
-            # Save to temp file for OCR fallback
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
                 tmp.write(data)
                 temp_path = tmp.name
-            # CLIP image-to-image search
             clip_hits = search_similar_images_by_image(data, session_id, k=3)
-            # Defensive: ensure clip_hits is a list of dicts
             if not isinstance(clip_hits, list):
                 clip_hits = []
             valid_hits = [h for h in clip_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
@@ -232,80 +231,95 @@ async def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> 
             response_data = {"results": results}
             if results:
                 logger.info(f"CLIP image search found {len(results)} valid results")
-                # Clean up temp file after use
                 if temp_path and os.path.exists(temp_path):
                     try:
                         os.remove(temp_path)
-                        logger.info(f"Cleaned up temporary file: {temp_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to clean up temporary file {temp_path}: {str(e)}")
+                    except Exception:
+                        pass
                 conf = results[0]["confidence"] if results[0]["confidence"] is not None else 1.0
+                # Save memory and update session
+                save_memory("[image upload]", str(results), session_id)
+                session_store[session_id] = {
+                    "text": raw + f"\nUser: [image upload]\nBot: {results}",
+                    "last_upload_type": "image"
+                }
                 return json.dumps(response_data), float(conf), "image"
             # OCR fallback
-            logger.info("No valid CLIP image results, using OCR fallback")
             ocr_text = extract_image_text(temp_path)
             response_data["ocr_text"] = ocr_text
-            # Clean up temp file after use
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
-                    logger.info(f"Cleaned up temporary file: {temp_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temporary file {temp_path}: {str(e)}")
+                except Exception:
+                    pass
+            save_memory("[image upload]", ocr_text, session_id)
+            session_store[session_id] = {
+                "text": raw + f"\nUser: [image upload]\nBot: {ocr_text}",
+                "last_upload_type": "image"
+            }
             return json.dumps(response_data), 1.0, "ocr"
         except Exception as e:
             logger.error(f"Image query processing failed: {str(e)}")
             mode = "text"
-    # 2) voice = text
-    if mode=="voice":
-        # assume content already transcribed upstream
+    # 2) Voice mode: treat as text (already transcribed)
+    if mode == "voice":
         pass
-
-    # 3) text/search/pdf → RAG with smart routing
-    logger.info("Processing as text query")
-
-    # Check if this should be treated as an image query based on content and session context
-    session_info = session_store.get(session_id, {})
-    last_upload_type = session_info.get("last_upload_type")
-
-    should_use_image_search = (
-        last_upload_type == "image" and
-        _is_image_query(content)
-    )
-
-    if should_use_image_search:
-        logger.info("Detected image-related query, prioritizing image search")
-        # Search image content first
-        image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
-        if not isinstance(image_hits, list):
-            image_hits = []
-        valid_hits = [h for h in image_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
-        if valid_hits:
-            logger.info(f"Image search found {len(valid_hits)} valid results")
-            best_hit = max(valid_hits, key=lambda x: x.get("score", 0))
-            response_data = {
-                "image_url": best_hit.get("url"),
-                "confidence": best_hit.get("score"),
-                "description": f"Similar image found for query: '{content}' with confidence: {best_hit.get('score', 0):.2f}"
+    # 3) Text mode: route to image or PDF RAG
+    if mode == "text":
+        should_use_image_search = last_upload_type == "image" and _is_image_query(content)
+        if should_use_image_search:
+            image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
+            if not isinstance(image_hits, list):
+                image_hits = []
+            valid_hits = [h for h in image_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
+            if valid_hits:
+                best_hit = max(valid_hits, key=lambda x: x.get("score", 0))
+                response_data = {
+                    "image_url": best_hit.get("url"),
+                    "confidence": best_hit.get("score"),
+                    "description": f"Similar image found for query: '{content}' with confidence: {best_hit.get('score', 0):.2f}"
+                }
+                save_memory(content, str(response_data), session_id)
+                session_store[session_id] = {
+                    "text": raw + f"\nUser: {content}\nBot: {response_data}",
+                    "last_upload_type": last_upload_type
+                }
+                return json.dumps(response_data), float(best_hit.get("score", 1.0)), "image"
+        # PDF RAG
+        combined = f"{raw}\nUser: {content}"
+        excerpts, conf, src = query_with_confidence(combined, session_id)
+        if conf < MIN_CONFIDENCE:
+            for fn, tag in [
+                (search_agent.search_arxiv, "arxiv"),
+                (search_agent.search_semantic_scholar, "semantic_scholar"),
+                (search_agent.search_web, "web"),
+            ]:
+                res = fn(content)
+                if res and "no" not in res.lower():
+                    save_memory(content, res, session_id)
+                    session_store[session_id] = {
+                        "text": raw + f"\nUser: {content}\nBot: {res}",
+                        "last_upload_type": last_upload_type
+                    }
+                    return res, 0.0, tag
+            save_memory(content, "No answer found", session_id)
+            session_store[session_id] = {
+                "text": raw + f"\nUser: {content}\nBot: No answer found",
+                "last_upload_type": last_upload_type
             }
-            return json.dumps(response_data), float(best_hit.get("score", 1.0)), "image"
-    # Standard RAG processing
-    raw = session_info.get("text","")
-    combined = f"{raw}\nUser: {content}"
-    excerpts, conf, src = query_with_confidence(combined, session_id)
-    if conf < MIN_CONFIDENCE:
-        logger.info("PDF RAG found no high-confidence answer, falling back to academic/web search chain")
-        for fn, tag in [
-            (search_agent.search_arxiv, "arxiv"),
-            (search_agent.search_semantic_scholar, "semantic_scholar"),
-            (search_agent.search_web, "web"),
-        ]:
-            res = fn(content)
-            if res and "no" not in res.lower():
-                return res, 0.0, tag
-        return "No answer found", 0.0, None
-    answer = rewrite_answer(excerpts, content, lang)
-    # update memory + session
+            return "No answer found", 0.0, None
+        answer = rewrite_answer(excerpts, content, lang)
+        save_memory(content, answer, session_id)
+        session_store[session_id] = {
+            "text": raw + f"\nUser: {content}\nBot: {answer}",
+            "last_upload_type": last_upload_type
+        }
+        return answer, conf, src
+    # fallback: treat as text
+    answer = f"[Unhandled mode: {mode}]"
     save_memory(content, answer, session_id)
-    session_store[session_id] = {"text": str(combined) + f"\nBot: {answer}", "last_upload_type": last_upload_type}
-    return answer, conf, src
+    session_store[session_id] = {
+        "text": raw + f"\nUser: {content}\nBot: {answer}",
+        "last_upload_type": last_upload_type
+    }
+    return answer, 0.0, None
