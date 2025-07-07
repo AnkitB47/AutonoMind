@@ -13,13 +13,16 @@ from vectorstore.pinecone_store import ingest_pdf_text_to_pinecone, search_pinec
 from agents import search_agent, translate_agent
 from models.gemini_vision import extract_image_text, summarize_text_gemini
 from app.config import Settings
+from typing import Any, Dict
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 settings = Settings()
 DEFAULT_SESSION_TTL = 3600
-session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
+
+session_store: TTLCache[str, Dict[str, Any]] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
+
 memory_cache: dict[str, list[str]] = defaultdict(list)
 MIN_CONFIDENCE = 0.3
 
