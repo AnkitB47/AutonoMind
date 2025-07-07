@@ -1,6 +1,6 @@
 # agents/rag_agent.py
 from __future__ import annotations
-import base64, os, tempfile, time, inspect, logging, json
+import base64, os, tempfile, time, inspect, logging, json, urllib.parse
 from uuid import uuid4
 from collections import defaultdict
 from cachetools import TTLCache
@@ -21,6 +21,9 @@ settings = Settings()
 DEFAULT_SESSION_TTL = 3600
 session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
 memory_cache: dict[str, list[str]] = defaultdict(list)
+
+MIN_IMAGE_CONFIDENCE = 0.2
+MIN_CONFIDENCE = 0.3  # for PDF RAG
 
 def _session_ns(base: str, sid: str|None) -> str:
     return f"{base}_{sid}" if sid else base
@@ -189,40 +192,59 @@ def search_similar_images_by_image(data: bytes, session_id: str, k: int = 3):
     hits = search_image(data, namespace=_session_ns("image", session_id), k=k)
     return hits
 
+def _sanitize_base64(content: str) -> str:
+    # Remove data:image/...;base64, prefix
+    if content.startswith("data:"):
+        content = content.split(",", 1)[-1]
+    # URL decode
+    content = urllib.parse.unquote(content)
+    # Add padding if needed
+    missing_padding = len(content) % 4
+    if missing_padding:
+        content += "=" * (4 - missing_padding)
+    return content
+
 def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[str,float,str|None]:
     logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
     
-    # 1) image mode → CLIP first then OCR
-    if mode=="image":
+    if mode == "image":
         logger.info("Processing as image query")
+        temp_path = None
         try:
-            data=base64.b64decode(content)
+            sanitized = _sanitize_base64(content)
+            data = base64.b64decode(sanitized)
             # CLIP image-to-image search
             clip_hits = search_similar_images_by_image(data, session_id, k=3)
-            if clip_hits:
-                logger.info(f"CLIP image search found {len(clip_hits)} results")
+            valid_hits = [hit for hit in clip_hits if hit["score"] >= MIN_IMAGE_CONFIDENCE]
+            if valid_hits:
+                logger.info(f"CLIP image search found {len(valid_hits)} valid results")
                 response_data = {
                     "results": [
-                        {"image_url": hit["url"], "score": hit["score"]}
-                        for hit in clip_hits
-                    ],
-                    "description": f"Top {len(clip_hits)} similar images found."
+                        {"image_url": hit["url"], "confidence": hit["score"]}
+                        for hit in valid_hits
+                    ]
                 }
-                return json.dumps(response_data), clip_hits[0]["score"], "image"
+                return json.dumps(response_data), valid_hits[0]["score"], "image"
             # OCR fallback
-            logger.info("No CLIP image results, using OCR fallback")
+            logger.info("No valid CLIP image results, using OCR fallback")
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
                 tmp.write(data)
                 temp_path = tmp.name
             ocr_text = extract_image_text(temp_path)
             response_data = {
-                "description": ocr_text,
-                "fallback": "No similar images found, showing OCR text instead"
+                "results": [],
+                "ocr_text": ocr_text
             }
             return json.dumps(response_data), 1.0, "ocr"
         except Exception as e:
             logger.error(f"Image query processing failed: {str(e)}")
             mode = "text"
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temp file {temp_path}: {str(e)}")
     # 2) voice = text
     if mode=="voice":
         # assume content already transcribed upstream
@@ -258,12 +280,17 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
     raw = session_info.get("text","")
     combined = f"{raw}\nUser: {content}"
     excerpts, conf, src = query_with_confidence(combined, session_id)
-    if excerpts == "No match found":
-        # Fallback to Wikipedia/Arxiv/Semantic Scholar, then web search
-        logger.info("PDF RAG found no answer, falling back to Wikipedia/Arxiv/Semantic Scholar/web search")
-        fallback_answer = search_agent.handle_query(content)
-        # Optionally, you can tag the source as 'fallback' or 'web'
-        return fallback_answer, 0.0, "fallback"
+    if conf < MIN_CONFIDENCE:
+        # 3-step fallback: arxiv → semantic_scholar → web
+        for fn, tag in [
+            (search_agent.search_arxiv, "arxiv"),
+            (search_agent.search_semantic_scholar, "semantic_scholar"),
+            (search_agent.search_web, "web"),
+        ]:
+            res = fn(content)
+            if res and "no" not in res.lower():
+                return res, 0.0, tag
+        return "No answer found", 0.0, None
     answer = rewrite_answer(excerpts, content, lang)
     # update memory + session
     save_memory(content, answer, session_id)
