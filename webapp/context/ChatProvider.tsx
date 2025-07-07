@@ -132,14 +132,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       } else {
         // chat branch (streams) - use /chat endpoint
-        // Determine the appropriate mode for the query
-        let queryMode = mode;
-        if (mode === 'text' && shouldTreatAsImageQuery(input as string)) {
-          queryMode = 'image';
-          console.debug('Treating text query as image query:', input);
-        }
-        
-        const res = await sendMessage(sessionId, queryMode, language, input as string);
+        // Always use 'text' mode for text queries, even if last upload was image
+        const res = await sendMessage(sessionId, 'text', language, input as string);
         if (!res.body) return setLoading(false);
         const source = res.headers.get('X-Source');
         const sessionIdHeader = res.headers.get('X-Session-ID');
