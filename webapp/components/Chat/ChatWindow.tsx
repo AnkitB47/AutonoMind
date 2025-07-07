@@ -19,13 +19,20 @@ export default function ChatWindow() {
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((m, i) => (
           <ChatBubble key={i} isUser={m.role==='user'} source={m.source}>
-            {m.imageUrl ? (
+            {m.imageResults && m.imageResults.length > 0 ? (
               <div className="space-y-2">
-                <img
-                  src={`${getApiBase()}${m.imageUrl}`}
-                  alt="RAG result"
-                  className="max-w-xs rounded shadow-md"
-                />
+                <div className="flex flex-row space-x-4 overflow-x-auto pb-2">
+                  {m.imageResults.map((img, idx) => (
+                    <div key={idx} className="flex flex-col items-center">
+                      <img
+                        src={`${getApiBase()}${img.imageUrl}`}
+                        alt={`RAG result ${idx+1}`}
+                        className="max-w-xs max-h-48 rounded shadow-md border"
+                      />
+                      <div className="text-xs text-gray-500 mt-1">Score: {img.score.toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
                 {m.description && (
                   <div className="text-sm text-gray-600 dark:text-gray-300">
                     {m.description}

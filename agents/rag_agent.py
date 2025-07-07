@@ -6,7 +6,7 @@ from collections import defaultdict
 from cachetools import TTLCache
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from agents.clip_faiss import ingest_image as ingest_clip_image, search_by_vector, search_text
+from agents.clip_faiss import ingest_image as ingest_clip_image, search_by_vector, search_text, search_image
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from vectorstore.faiss_store import search_faiss_with_score
 from vectorstore.pinecone_store import ingest_pdf_text_to_pinecone, search_pinecone_with_score
@@ -184,6 +184,11 @@ def save_memory(q:str, a:str, session_id:str|None=None):
     ingest_text_to_faiss(entry, namespace=_session_ns("memory",session_id))
     if session_id: memory_cache[session_id].append(entry)
 
+def search_similar_images_by_image(data: bytes, session_id: str, k: int = 3):
+    """Search the FAISS index using the image embedding."""
+    hits = search_image(data, namespace=_session_ns("image", session_id), k=k)
+    return hits
+
 def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[str,float,str|None]:
     logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
     
@@ -192,20 +197,24 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
         logger.info("Processing as image query")
         try:
             data=base64.b64decode(content)
-            # CLIP
-            clip_hits = search_text("", namespace=_session_ns("image", session_id), k=1)
+            # CLIP image-to-image search
+            clip_hits = search_similar_images_by_image(data, session_id, k=3)
             if clip_hits:
-                logger.info(f"CLIP search found {len(clip_hits)} results")
-                # Return structured JSON with image URL and description
+                logger.info(f"CLIP image search found {len(clip_hits)} results")
                 response_data = {
-                    "image_url": clip_hits[0]["url"],
-                    "description": f"Similar image found with confidence: {clip_hits[0]['score']:.2f}"
+                    "results": [
+                        {"image_url": hit["url"], "score": hit["score"]}
+                        for hit in clip_hits
+                    ],
+                    "description": f"Top {len(clip_hits)} similar images found."
                 }
                 return json.dumps(response_data), clip_hits[0]["score"], "image"
-            
             # OCR fallback
-            logger.info("No CLIP results, using OCR fallback")
-            ocr_text = extract_image_text(tempfile.NamedTemporaryFile(delete=False).name)
+            logger.info("No CLIP image results, using OCR fallback")
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
+                tmp.write(data)
+                temp_path = tmp.name
+            ocr_text = extract_image_text(temp_path)
             response_data = {
                 "description": ocr_text,
                 "fallback": "No similar images found, showing OCR text instead"
@@ -213,9 +222,7 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
             return json.dumps(response_data), 1.0, "ocr"
         except Exception as e:
             logger.error(f"Image query processing failed: {str(e)}")
-            # Fall back to text-based search
             mode = "text"
-
     # 2) voice = text
     if mode=="voice":
         # assume content already transcribed upstream

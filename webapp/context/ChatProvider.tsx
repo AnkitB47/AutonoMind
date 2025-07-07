@@ -5,11 +5,13 @@ import getApiBase from '../utils/getApiBase';
 
 export type Mode = 'text' | 'voice' | 'image' | 'search';
 
+type ImageResult = { imageUrl: string; score: number };
+
 export interface Message {
   role: 'user' | 'bot';
   content: string;
-  /** optional URL of an ingested image (RAG result) */
-  imageUrl?: string;
+  /** optional array of image results for image RAG */
+  imageResults?: ImageResult[];
   /** optional description for image queries */
   description?: string;
   /** optional source tag for RAG / web fallback */
@@ -134,16 +136,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Check if response is JSON (image query result)
         const contentType = res.headers.get('Content-Type');
         if (contentType && contentType.includes('application/json')) {
-          // Handle structured JSON response for image queries
           const responseData = await res.json();
-          setMessages(m => [...m, { 
-            role: 'bot', 
-            content: '', 
-            imageUrl: responseData.image_url,
-            description: responseData.description,
-            source, 
-            ts: Date.now() 
-          }]);
+          // Handle top-N image results
+          if (responseData.results && Array.isArray(responseData.results)) {
+            setMessages(m => [...m, {
+              role: 'bot',
+              content: '',
+              imageResults: responseData.results.map((r: any) => ({
+                imageUrl: r.image_url,
+                score: r.score
+              })),
+              description: responseData.description,
+              source,
+              ts: Date.now()
+            }]);
+          } else {
+            setMessages(m => [...m, {
+              role: 'bot',
+              content: '',
+              description: responseData.description,
+              source,
+              ts: Date.now()
+            }]);
+          }
         } else {
           // Handle streaming text response
           setMessages(m => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
