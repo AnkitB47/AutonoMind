@@ -41,7 +41,7 @@ async def unified_chat(payload: ChatRequest):
     # Check if response is JSON (image query result)
     try:
         response_data = json.loads(text)
-        if isinstance(response_data, dict) and ("image_url" in response_data or "description" in response_data):
+        if isinstance(response_data, dict) and ("image_url" in response_data or "description" in response_data or "results" in response_data):
             # Return structured JSON response for image queries
             headers = {
                 "X-Session-ID": payload.session_id,

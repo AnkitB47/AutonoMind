@@ -1,6 +1,6 @@
 # agents/rag_agent.py
 from __future__ import annotations
-import base64, os, tempfile, time, inspect, logging, json, urllib.parse
+import base64, os, tempfile, time, inspect, logging, json
 from uuid import uuid4
 from collections import defaultdict
 from cachetools import TTLCache
@@ -21,9 +21,7 @@ settings = Settings()
 DEFAULT_SESSION_TTL = 3600
 session_store: TTLCache[str, dict] = TTLCache(maxsize=128, ttl=DEFAULT_SESSION_TTL)
 memory_cache: dict[str, list[str]] = defaultdict(list)
-
-MIN_IMAGE_CONFIDENCE = 0.2
-MIN_CONFIDENCE = 0.3  # for PDF RAG
+MIN_CONFIDENCE = 0.3
 
 def _session_ns(base: str, sid: str|None) -> str:
     return f"{base}_{sid}" if sid else base
@@ -39,9 +37,23 @@ def _is_image_query(query: str) -> bool:
         'appears', 'contains', 'shows', 'depicts', 'represents', 'illustrates',
         'this image', 'this picture', 'this photo', 'the image', 'the picture'
     ]
-    
+
     lower_query = query.lower()
     return any(keyword in lower_query for keyword in image_keywords)
+
+def _sanitize_b64(content: str) -> bytes:
+    import base64, re, urllib.parse
+    # Remove data:image/...;base64, prefix
+    content = re.sub(r"^data:image/[^;]+;base64,", "", content)
+    # URL decode
+    content = urllib.parse.unquote(content)
+    # Remove whitespace
+    content = content.strip().replace("\n", "").replace(" ", "")
+    # Pad to multiple of 4
+    missing_padding = len(content) % 4
+    if missing_padding:
+        content += "=" * (4 - missing_padding)
+    return base64.b64decode(content)
 
 async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
     """Process uploaded file with comprehensive error handling."""
@@ -192,59 +204,55 @@ def search_similar_images_by_image(data: bytes, session_id: str, k: int = 3):
     hits = search_image(data, namespace=_session_ns("image", session_id), k=k)
     return hits
 
-def _sanitize_base64(content: str) -> str:
-    # Remove data:image/...;base64, prefix
-    if content.startswith("data:"):
-        content = content.split(",", 1)[-1]
-    # URL decode
-    content = urllib.parse.unquote(content)
-    # Add padding if needed
-    missing_padding = len(content) % 4
-    if missing_padding:
-        content += "=" * (4 - missing_padding)
-    return content
-
-def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[str,float,str|None]:
+async def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[str,float,str|None]:
     logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
-    
-    if mode == "image":
+
+    # 1) image mode → CLIP first then OCR
+    if mode=="image":
         logger.info("Processing as image query")
-        temp_path = None
         try:
-            sanitized = _sanitize_base64(content)
-            data = base64.b64decode(sanitized)
-            # CLIP image-to-image search
-            clip_hits = search_similar_images_by_image(data, session_id, k=3)
-            valid_hits = [hit for hit in clip_hits if hit["score"] >= MIN_IMAGE_CONFIDENCE]
-            if valid_hits:
-                logger.info(f"CLIP image search found {len(valid_hits)} valid results")
-                response_data = {
-                    "results": [
-                        {"image_url": hit["url"], "confidence": hit["score"]}
-                        for hit in valid_hits
-                    ]
-                }
-                return json.dumps(response_data), valid_hits[0]["score"], "image"
-            # OCR fallback
-            logger.info("No valid CLIP image results, using OCR fallback")
+            data = _sanitize_b64(content)
+            # Save to temp file for OCR fallback
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
                 tmp.write(data)
                 temp_path = tmp.name
+            # CLIP image-to-image search
+            clip_hits = search_similar_images_by_image(data, session_id, k=3)
+            # Defensive: ensure clip_hits is a list of dicts
+            if not isinstance(clip_hits, list):
+                clip_hits = []
+            valid_hits = [h for h in clip_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
+            results = [
+                {"image_url": h.get("url"), "confidence": h.get("score")}
+                for h in valid_hits
+            ]
+            response_data = {"results": results}
+            if results:
+                logger.info(f"CLIP image search found {len(results)} valid results")
+                # Clean up temp file after use
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                        logger.info(f"Cleaned up temporary file: {temp_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temporary file {temp_path}: {str(e)}")
+                conf = results[0]["confidence"] if results[0]["confidence"] is not None else 1.0
+                return json.dumps(response_data), float(conf), "image"
+            # OCR fallback
+            logger.info("No valid CLIP image results, using OCR fallback")
             ocr_text = extract_image_text(temp_path)
-            response_data = {
-                "results": [],
-                "ocr_text": ocr_text
-            }
+            response_data["ocr_text"] = ocr_text
+            # Clean up temp file after use
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                    logger.info(f"Cleaned up temporary file: {temp_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temporary file {temp_path}: {str(e)}")
             return json.dumps(response_data), 1.0, "ocr"
         except Exception as e:
             logger.error(f"Image query processing failed: {str(e)}")
             mode = "text"
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temp file {temp_path}: {str(e)}")
     # 2) voice = text
     if mode=="voice":
         # assume content already transcribed upstream
@@ -252,36 +260,38 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
 
     # 3) text/search/pdf → RAG with smart routing
     logger.info("Processing as text query")
-    
+
     # Check if this should be treated as an image query based on content and session context
     session_info = session_store.get(session_id, {})
     last_upload_type = session_info.get("last_upload_type")
-    
+
     should_use_image_search = (
-        last_upload_type == "image" and 
+        last_upload_type == "image" and
         _is_image_query(content)
     )
-    
+
     if should_use_image_search:
         logger.info("Detected image-related query, prioritizing image search")
         # Search image content first
         image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
-        if image_hits:
-            logger.info(f"Image search found {len(image_hits)} results")
-            # Return the best image match as structured JSON
-            best_hit = max(image_hits, key=lambda x: x["score"])
+        if not isinstance(image_hits, list):
+            image_hits = []
+        valid_hits = [h for h in image_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
+        if valid_hits:
+            logger.info(f"Image search found {len(valid_hits)} valid results")
+            best_hit = max(valid_hits, key=lambda x: x.get("score", 0))
             response_data = {
-                "image_url": best_hit["url"],
-                "description": f"Similar image found for query: '{content}' with confidence: {best_hit['score']:.2f}"
+                "image_url": best_hit.get("url"),
+                "confidence": best_hit.get("score"),
+                "description": f"Similar image found for query: '{content}' with confidence: {best_hit.get('score', 0):.2f}"
             }
-            return json.dumps(response_data), best_hit["score"], "image"
-    
+            return json.dumps(response_data), float(best_hit.get("score", 1.0)), "image"
     # Standard RAG processing
     raw = session_info.get("text","")
     combined = f"{raw}\nUser: {content}"
     excerpts, conf, src = query_with_confidence(combined, session_id)
     if conf < MIN_CONFIDENCE:
-        # 3-step fallback: arxiv → semantic_scholar → web
+        logger.info("PDF RAG found no high-confidence answer, falling back to academic/web search chain")
         for fn, tag in [
             (search_agent.search_arxiv, "arxiv"),
             (search_agent.search_semantic_scholar, "semantic_scholar"),
@@ -294,5 +304,5 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
     answer = rewrite_answer(excerpts, content, lang)
     # update memory + session
     save_memory(content, answer, session_id)
-    session_store[session_id] = {"text": combined + f"\nBot: {answer}", "last_upload_type": last_upload_type}
+    session_store[session_id] = {"text": str(combined) + f"\nBot: {answer}", "last_upload_type": last_upload_type}
     return answer, conf, src
