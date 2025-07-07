@@ -257,9 +257,15 @@ def handle_query(mode:str, content:str, session_id:str, lang:str="en") -> tuple[
     # Standard RAG processing
     raw = session_info.get("text","")
     combined = f"{raw}\nUser: {content}"
-    excerpts,conf,src = query_with_confidence(combined, session_id)
+    excerpts, conf, src = query_with_confidence(combined, session_id)
+    if excerpts == "No match found":
+        # Fallback to Wikipedia/Arxiv/Semantic Scholar, then web search
+        logger.info("PDF RAG found no answer, falling back to Wikipedia/Arxiv/Semantic Scholar/web search")
+        fallback_answer = search_agent.handle_query(content)
+        # Optionally, you can tag the source as 'fallback' or 'web'
+        return fallback_answer, 0.0, "fallback"
     answer = rewrite_answer(excerpts, content, lang)
     # update memory + session
     save_memory(content, answer, session_id)
-    session_store[session_id]={"text": combined + f"\nBot: {answer}", "last_upload_type": last_upload_type}
+    session_store[session_id] = {"text": combined + f"\nBot: {answer}", "last_upload_type": last_upload_type}
     return answer, conf, src
