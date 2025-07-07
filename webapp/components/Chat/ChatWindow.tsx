@@ -18,7 +18,7 @@ export default function ChatWindow() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((m, i) => (
-          <ChatBubble key={i} isUser={m.role==='user'} source={m.source}>
+          <ChatBubble key={i} isUser={m.role==='user'} source={m.source} error={m.error}>
             {m.imageResults && m.imageResults.length > 0 ? (
               <div className="space-y-2">
                 <div className="flex flex-row space-x-4 overflow-x-auto pb-2">

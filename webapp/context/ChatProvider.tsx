@@ -18,6 +18,8 @@ export interface Message {
   source?: string | null;
   /** timestamp for display */
   ts: number;
+  /** optional error flag for error messages */
+  error?: boolean;
 }
 
 interface ChatCtx {
@@ -101,10 +103,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
         
         if (!res.ok) {
-          throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+          const errorMsg = `Upload failed: ${res.status} ${res.statusText}`;
+          setMessages(m => [...m, { role: 'bot', content: errorMsg, ts: Date.now(), error: true }]);
+          setError(errorMsg);
+          setLoading(false);
+          return;
         }
         
         const data = await res.json();
+        if (data.error) {
+          setMessages(m => [...m, { role: 'bot', content: data.error, ts: Date.now(), error: true }]);
+          setError(data.error);
+          setLoading(false);
+          return;
+        }
         console.debug('Upload response:', data);
         if (data.session_id) setSessionId(data.session_id);
         setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
@@ -133,10 +145,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const sessionIdHeader = res.headers.get('X-Session-ID');
         if (sessionIdHeader) setSessionId(sessionIdHeader);
         
-        // Check if response is JSON (image query result)
+        // Check if response is JSON (image query result or error)
         const contentType = res.headers.get('Content-Type');
         if (contentType && contentType.includes('application/json')) {
           const responseData = await res.json();
+          if (responseData.error) {
+            setMessages(m => [...m, { role: 'bot', content: responseData.error, ts: Date.now(), error: true }]);
+            setError(responseData.error);
+            setLoading(false);
+            return;
+          }
           // Handle top-N image results
           if (responseData.results && Array.isArray(responseData.results)) {
             setMessages(m => [...m, {
@@ -179,6 +197,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     } catch (e: any) {
       console.error('Error in sendUserInput:', e);
+      setMessages(m => [...m, { role: 'bot', content: e.message || 'An error occurred', ts: Date.now(), error: true }]);
       setError(e.message || 'An error occurred');
     } finally {
       setLoading(false);

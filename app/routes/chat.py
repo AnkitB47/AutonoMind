@@ -5,6 +5,7 @@ import agents.rag_agent as rag_agent
 from agents import search_agent
 from app.config import Settings
 import base64, asyncio, json
+import logging
 
 from app.schemas import ChatRequest
 from models.whisper_runner import transcribe_audio
@@ -34,6 +35,11 @@ async def unified_chat(payload: ChatRequest):
         src = "web"
     else:
         text, conf, src = await rag_agent.handle_query(mode, content, payload.session_id, payload.lang)
+        # If image query failed, return error as plain text
+        if (mode == "image" or (mode == "text" and src == None)) and isinstance(text, str) and text.startswith("Image query processing failed"):
+            # Log error
+            logging.getLogger(__name__).error(f"Image query failed: {text}")
+            return JSONResponse(content={"error": text}, status_code=400)
         # Post-process RAG answers for conciseness
         if mode == "text" and src and src != "web":
             text = rag_agent.rewrite_answer(text, content, payload.lang)

@@ -56,7 +56,11 @@ def _sanitize_b64(content: str) -> bytes:
     missing_padding = len(content) % 4
     if missing_padding:
         content += "=" * (4 - missing_padding)
-    return base64.b64decode(content)
+    # Validate base64
+    try:
+        return base64.b64decode(content, validate=True)
+    except Exception as e:
+        raise ValueError(f"Invalid base64 image data: {str(e)}")
 
 async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
     """Process uploaded file with comprehensive error handling."""
@@ -213,6 +217,13 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
     last_upload_type = session_info.get("last_upload_type")
     raw = session_info.get("text", "")
 
+    # Ensure session exists
+    if not session_info:
+        logger.warning(f"Session {session_id} not found. Creating new session context.")
+        session_store[session_id] = {"text": "", "last_upload_type": None, "last_upload_name": None}
+        last_upload_type = None
+        raw = ""
+
     # 1) Image mode: CLIP image-to-image, else OCR fallback
     if mode == "image":
         try:
@@ -258,15 +269,19 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
                 "last_upload_type": "image"
             }
             return json.dumps(response_data), 1.0, "ocr"
+        except ValueError as e:
+            logger.error(f"Image query processing failed (base64): {str(e)}")
+            return f"Image query processing failed: {str(e)}", 0.0, None
         except Exception as e:
             logger.error(f"Image query processing failed: {str(e)}")
-            mode = "text"
+            return f"Image query processing failed: {str(e)}", 0.0, None
     # 2) Voice mode: treat as text (already transcribed)
     if mode == "voice":
         pass
     # 3) Text mode: route to image or PDF RAG
     if mode == "text":
         should_use_image_search = last_upload_type == "image" and _is_image_query(content)
+        logger.info(f"Text mode: should_use_image_search={should_use_image_search}, last_upload_type={last_upload_type}")
         if should_use_image_search:
             image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
             if not isinstance(image_hits, list):
