@@ -5,12 +5,16 @@ import type { Blob } from 'buffer';
 import { ChatContext } from '../../context/ChatProvider';
 import { Button } from '../Shared/Button';
 import useSpeechRecognition from '../../hooks/useSpeechRecognition';
+import { laionSearchImage } from '../../services/chatService';
 
 export default function ChatInput() {
   const { mode, sendUserInput, setMode } = useContext(ChatContext);
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const { start, stop, isRecording } = useSpeechRecognition();
+
+  // Add state for LAION results
+  const [laionResults, setLaionResults] = useState<any[]>([]);
 
   const handleSend = () => {
     // If an image or PDF is selected, upload it
@@ -57,6 +61,18 @@ export default function ChatInput() {
       case 'image': return 'Image Upload';
       case 'search': return 'Web Search';
       default: return 'Text Chat';
+    }
+  };
+
+  // Handler for LAION image upload
+  const handleLaionImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const res = await laionSearchImage(file, 5);
+      setLaionResults(res.results);
+    } catch (err) {
+      alert('LAION search failed');
     }
   };
 
@@ -119,6 +135,26 @@ export default function ChatInput() {
           <Button onClick={handleSend} aria-label="search">
             <Search size={20} />
           </Button>
+        </div>
+      )}
+
+      {/* LAION image search upload */}
+      <input type="file" accept="image/*" onChange={handleLaionImage} style={{ display: 'none' }} id="laion-upload" />
+      <label htmlFor="laion-upload" style={{ cursor: 'pointer', marginLeft: 8 }}>
+        <span role="img" aria-label="LAION">🔍🖼️</span>
+      </label>
+
+      {/* Show LAION results */}
+      {laionResults.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h4>LAION Similar Images:</h4>
+          <ul>
+            {laionResults.map((r, i) => (
+              <li key={i}>
+                <a href={r.url} target="_blank" rel="noopener noreferrer">{r.caption}</a> (score: {r.score.toFixed(3)})
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

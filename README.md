@@ -218,3 +218,43 @@ Key log patterns to monitor:
 - **Concurrent uploads**: Limit to 1 upload at a time
 - **Memory monitoring**: Watch for memory leaks in PDF processing
 - **Connection pooling**: Uvicorn handles multiple concurrent requests
+
+## LAION-400M Local Similarity Search
+
+This project supports fast local similarity search over 50,000 images from LAION-400M using precomputed CLIP embeddings and FAISS.
+
+### How it works
+- Downloads a slice of LAION-400M (captions, URLs, CLIP embeddings) using Hugging Face API.
+- Filters for NSFW=="UNLIKELY" and captions >= 10 chars.
+- Builds a FAISS index and metadata file.
+- When a user uploads an image, computes its CLIP embedding and returns top-N similar LAION images (caption, URL, score).
+
+### Setup
+1. Set your Hugging Face token:
+   ```sh
+   export HF_TOKEN=your_hf_token
+   ```
+2. Install requirements:
+   ```sh
+   pip install -r requirements-cpu.txt
+   # or
+   pip install -r requirements-gpu.txt
+   ```
+3. Build the index (downloads ~50,000 rows, requires ~1GB disk):
+   ```sh
+   python vectorstore/image_store/laion_faiss_build.py
+   ```
+   Logs will show how many vectors were loaded, disk space used, and build time.
+
+### Usage
+- In the web UI, click the 🔍🖼️ button to upload an image and search LAION for similar images.
+- Results show top captions, URLs, and similarity scores.
+
+### Backend
+- New FastAPI route: `/laion-search-image` (POST, accepts image file, returns top-N results)
+- See `agents/clip_faiss.py` for search logic.
+
+### Notes
+- No re-embedding of LAION images is performed.
+- Only a small slice of LAION is used for fast local search.
+- You can adjust the slice size in `laion_faiss_build.py`.

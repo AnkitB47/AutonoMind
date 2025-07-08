@@ -20,6 +20,7 @@ from PIL import Image
 from io import BytesIO
 import sys
 import importlib.machinery
+import time
 
 if "faiss" in sys.modules:
     mod = sys.modules["faiss"]
@@ -40,10 +41,16 @@ INDEX_PATH = os.getenv("CLIP_FAISS_INDEX", settings.CLIP_FAISS_INDEX)
 META_PATH = INDEX_PATH + ".json"
 IMAGE_STORE = os.getenv("IMAGE_STORE", settings.IMAGE_STORE)
 
+LAION_INDEX_PATH = os.path.join(os.path.dirname(__file__), '../vectorstore/image_store/laion_clip.index')
+LAION_META_PATH = os.path.join(os.path.dirname(__file__), '../vectorstore/image_store/laion_clip_meta.json')
+
 _processor: object | None = None
 _model: object | None = None
 _index: faiss.Index | None = None
 _meta: List[dict] = []
+
+_laion_index = None
+_laion_meta = None
 
 
 def _load_model() -> tuple[object | None, object]:
@@ -78,6 +85,16 @@ def _load_model() -> tuple[object | None, object]:
         return _processor, _model
     except Exception as e:
         raise RuntimeError(f"Failed to load CLIP model: {e}")
+
+
+def _load_laion_index():
+    global _laion_index, _laion_meta
+    if _laion_index is not None and _laion_meta is not None:
+        return _laion_index, _laion_meta
+    _laion_index = faiss.read_index(LAION_INDEX_PATH)
+    with open(LAION_META_PATH, 'r', encoding='utf-8') as f:
+        _laion_meta = json.load(f)
+    return _laion_index, _laion_meta
 
 
 def _model_dim(model: object) -> int:
@@ -228,3 +245,25 @@ def search_text(text: str, namespace: str = "image", k: int = 5):
 def search_image(data: bytes, namespace: str = "image", k: int = 5):
     vec = _encode_image(data)
     return search_by_vector(vec, namespace, k)
+
+
+def search_laion_by_image(data: bytes, k: int = 5):
+    index, meta = _load_laion_index()
+    t0 = time.time()
+    vec = _encode_image(data)
+    faiss.normalize_L2(vec.reshape(1, -1))
+    D, I = index.search(vec.reshape(1, -1).astype('float32'), k)
+    results = []
+    for idx, score in zip(I[0], D[0]):
+        if idx == -1:
+            continue
+        m = meta[idx]
+        results.append({
+            'caption': m.get('caption', ''),
+            'url': m.get('url', ''),
+            'score': float(score),
+            'index': m.get('index', idx)
+        })
+    t1 = time.time()
+    print(f"[LAION] Searched {len(meta)} vectors, {os.path.getsize(LAION_INDEX_PATH)/1e6:.2f}MB, time: {t1-t0:.3f}s")
+    return results

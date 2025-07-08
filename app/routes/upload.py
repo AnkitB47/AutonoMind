@@ -9,6 +9,9 @@ import requests
 import numpy as np
 import os
 from app.image_rag_utils import analyze_image_content
+from fastapi import APIRouter, UploadFile, File
+from fastapi.responses import JSONResponse
+from agents.clip_faiss import search_laion_by_image
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -163,3 +166,9 @@ async def image_analyze(file: UploadFile = File(...), session_id: str = Form("")
     except Exception as e:
         logger.error(f"Image-analyze failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Image-analyze failed: {str(e)}")
+
+@router.post('/laion-search-image')
+async def laion_search_image(file: UploadFile = File(...), top_k: int = 5):
+    data = await file.read()
+    results = search_laion_by_image(data, k=top_k)
+    return JSONResponse(content={"results": results})

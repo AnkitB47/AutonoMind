@@ -51,6 +51,18 @@ export async function sendMessage(
   return res;
 }
 
+export async function laionSearchImage(file: File, topK: number = 5) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('top_k', String(topK));
+  const res = await fetch(`/api/laion-search-image`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('LAION search failed');
+  return res.json();
+}
+
 function blobToBase64(b: Blob): Promise<string> {
   return new Promise(resolve => {
     const reader = new FileReader();
