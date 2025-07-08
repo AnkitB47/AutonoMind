@@ -126,10 +126,10 @@ async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
                 logger.info(f"Extracted text from image: {len(text)} characters")
 
                 ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
-                logger.info("Text ingested to FAISS")
+                logger.info(f"Text ingested to FAISS (namespace={_session_ns('image', sid)})")
 
                 stored = ingest_clip_image(temp_path, namespace=_session_ns("image", sid))
-                logger.info("Image ingested to CLIP")
+                logger.info(f"Image ingested to CLIP (namespace={_session_ns('image', sid)})")
 
                 msg = "✅ Image ingested"
                 logger.info(f"Image processing completed: {msg}")
@@ -284,12 +284,15 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
     # 3) Text mode: route to image or PDF RAG
     if mode == "text":
         should_use_image_search = last_upload_type == "image" and _is_image_query(content)
-        logger.info(f"Text mode: should_use_image_search={should_use_image_search}, last_upload_type={last_upload_type}")
+        logger.info(f"Text mode: should_use_image_search={should_use_image_search}, last_upload_type={last_upload_type}, session_id={session_id}")
         if should_use_image_search:
+            logger.info(f"Searching images in namespace: {_session_ns('image', session_id)} for session: {session_id}")
             image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
+            logger.info(f"Image search returned {len(image_hits) if isinstance(image_hits, list) else 0} hits: {image_hits}")
             if not isinstance(image_hits, list):
                 image_hits = []
             valid_hits = [h for h in image_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
+            logger.info(f"Valid image hits (score >= 0.2): {valid_hits}")
             if valid_hits:
                 best_hit = max(valid_hits, key=lambda x: x.get("score", 0))
                 response_data = {
@@ -303,7 +306,9 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
                     "last_upload_type": last_upload_type,
                     "last_upload_name": last_upload_name
                 }
+                logger.info(f"Returning image RAG result for session: {session_id}")
                 return json.dumps(response_data), float(best_hit.get("score", 1.0)), "image"
+            logger.info(f"No valid image hits found, falling back to PDF/memory/web for session: {session_id}")
         # PDF RAG
         combined = f"{raw}\nUser: {content}"
         excerpts, conf, src = query_with_confidence(combined, session_id)
