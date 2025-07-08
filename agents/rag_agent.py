@@ -215,6 +215,7 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
     logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
     session_info = session_store.get(session_id, {})
     last_upload_type = session_info.get("last_upload_type")
+    last_upload_name = session_info.get("last_upload_name")
     raw = session_info.get("text", "")
 
     # Ensure session exists
@@ -252,7 +253,8 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
                 save_memory("[image upload]", str(results), session_id)
                 session_store[session_id] = {
                     "text": raw + f"\nUser: [image upload]\nBot: {results}",
-                    "last_upload_type": "image"
+                    "last_upload_type": "image",
+                    "last_upload_name": last_upload_name
                 }
                 return json.dumps(response_data), float(conf), "image"
             # OCR fallback
@@ -266,7 +268,8 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
             save_memory("[image upload]", ocr_text, session_id)
             session_store[session_id] = {
                 "text": raw + f"\nUser: [image upload]\nBot: {ocr_text}",
-                "last_upload_type": "image"
+                "last_upload_type": "image",
+                "last_upload_name": last_upload_name
             }
             return json.dumps(response_data), 1.0, "ocr"
         except ValueError as e:
@@ -297,7 +300,8 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
                 save_memory(content, str(response_data), session_id)
                 session_store[session_id] = {
                     "text": raw + f"\nUser: {content}\nBot: {response_data}",
-                    "last_upload_type": last_upload_type
+                    "last_upload_type": last_upload_type,
+                    "last_upload_name": last_upload_name
                 }
                 return json.dumps(response_data), float(best_hit.get("score", 1.0)), "image"
         # PDF RAG
@@ -314,20 +318,23 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
                     save_memory(content, res, session_id)
                     session_store[session_id] = {
                         "text": raw + f"\nUser: {content}\nBot: {res}",
-                        "last_upload_type": last_upload_type
+                        "last_upload_type": last_upload_type,
+                        "last_upload_name": last_upload_name
                     }
                     return res, 0.0, tag
             save_memory(content, "No answer found", session_id)
             session_store[session_id] = {
                 "text": raw + f"\nUser: {content}\nBot: No answer found",
-                "last_upload_type": last_upload_type
+                "last_upload_type": last_upload_type,
+                "last_upload_name": last_upload_name
             }
             return "No answer found", 0.0, None
         answer = rewrite_answer(excerpts, content, lang)
         save_memory(content, answer, session_id)
         session_store[session_id] = {
             "text": raw + f"\nUser: {content}\nBot: {answer}",
-            "last_upload_type": last_upload_type
+            "last_upload_type": last_upload_type,
+            "last_upload_name": last_upload_name
         }
         return answer, conf, src
     # fallback: treat as text
@@ -335,6 +342,7 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
     save_memory(content, answer, session_id)
     session_store[session_id] = {
         "text": raw + f"\nUser: {content}\nBot: {answer}",
-        "last_upload_type": last_upload_type
+        "last_upload_type": last_upload_type,
+        "last_upload_name": last_upload_name
     }
     return answer, 0.0, None
