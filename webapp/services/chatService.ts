@@ -8,11 +8,28 @@ export async function sendMessage(
   lang: string,
   content: string | File | Blob
 ) {
-  // Files (images & PDFs) go to /upload endpoint
+  // Files (images & PDFs) go to different endpoints
   if (content instanceof File) {
     const form = new FormData();
     form.append('file', content);
     form.append('session_id', sessionId);
+    const fileName = content.name.toLowerCase();
+    if (fileName.endsWith('.pdf')) {
+      // PDF uploads go to /upload
+      const res = await fetch(`${getApiBase()}/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      return res.json();
+    } else if (fileName.match(/\.(png|jpg|jpeg|gif|webp)$/)) {
+      // Image uploads go to /image-analyze
+      const res = await fetch(`${getApiBase()}/image-analyze`, {
+        method: 'POST',
+        body: form,
+      });
+      return res.json();
+    }
+    // For other file types, fallback to /upload
     const res = await fetch(`${getApiBase()}/upload`, {
       method: 'POST',
       body: form,

@@ -6,12 +6,11 @@ from collections import defaultdict
 from cachetools import TTLCache
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from agents.clip_faiss import ingest_image as ingest_clip_image, search_by_vector, search_text, search_image
 from vectorstore.faiss_embed_and_store import ingest_text_to_faiss
 from vectorstore.faiss_store import search_faiss_with_score
 from vectorstore.pinecone_store import ingest_pdf_text_to_pinecone, search_pinecone_with_score
 from agents import search_agent, translate_agent
-from models.gemini_vision import extract_image_text, summarize_text_gemini
+from models.gemini_vision import summarize_text_gemini
 from app.config import Settings
 from typing import Any, Dict
 
@@ -63,7 +62,7 @@ def _sanitize_b64(content: str) -> bytes:
         raise ValueError(f"Invalid base64 image data: {str(e)}")
 
 async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
-    """Process uploaded file with comprehensive error handling."""
+    """Process uploaded file with comprehensive error handling (PDF only)."""
     temp_path = None
     try:
         sid = session_id or str(uuid4())
@@ -118,25 +117,6 @@ async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
             except Exception as e:
                 logger.error(f"PDF processing failed: {str(e)}")
                 raise Exception(f"PDF processing failed: {str(e)}")
-
-        elif suffix in {"png", "jpg", "jpeg", "gif", "webp"}:
-            logger.info(f"Processing image: {name}")
-            try:
-                text = extract_image_text(temp_path)
-                logger.info(f"Extracted text from image: {len(text)} characters")
-
-                ingest_text_to_faiss(text, namespace=_session_ns("image", sid))
-                logger.info(f"Text ingested to FAISS (namespace={_session_ns('image', sid)})")
-
-                stored = ingest_clip_image(temp_path, namespace=_session_ns("image", sid))
-                logger.info(f"Image ingested to CLIP (namespace={_session_ns('image', sid)})")
-
-                msg = "✅ Image ingested"
-                logger.info(f"Image processing completed: {msg}")
-
-            except Exception as e:
-                logger.error(f"Image processing failed: {str(e)}")
-                raise Exception(f"Image processing failed: {str(e)}")
         else:
             logger.warning(f"Unsupported file format: {suffix}")
             raise Exception(f"Unsupported format: {suffix}")
@@ -144,7 +124,7 @@ async def process_file(file, session_id: str|None=None) -> tuple[str,str]:
         # Store session with upload context
         session_store[sid] = {
             "text": "",
-            "last_upload_type": "pdf" if suffix == "pdf" else "image",
+            "last_upload_type": "pdf" if suffix == "pdf" else "other",
             "last_upload_name": name
         }
         logger.info(f"Session stored: {sid} with upload type: {session_store[sid]['last_upload_type']}")
@@ -173,10 +153,6 @@ def _search_all(text:str, sid:str, include_mem:bool) -> tuple[str,float,str|None
     if include_mem:
         ans,conf=search_faiss_with_score(text, namespace=_session_ns("memory", sid), k=3)
         if ans: ranked.append((_clean(ans), conf, "memory"))
-    # CLIP-image
-    clip_hits = search_text(text, namespace=_session_ns("image", sid), k=1)
-    if clip_hits:
-        ranked.append((clip_hits[0]["url"], clip_hits[0]["score"], "image"))
 
     if not ranked:
         return "No match found", 0.0, None
@@ -206,11 +182,6 @@ def save_memory(q:str, a:str, session_id:str|None=None):
     ingest_text_to_faiss(entry, namespace=_session_ns("memory",session_id))
     if session_id: memory_cache[session_id].append(entry)
 
-def search_similar_images_by_image(data: bytes, session_id: str, k: int = 3):
-    """Search the FAISS index using the image embedding."""
-    hits = search_image(data, namespace=_session_ns("image", session_id), k=k)
-    return hits
-
 async def handle_query(mode: str, content: str, session_id: str, lang: str = "en") -> tuple[str, float, str | None]:
     logger.info(f"handle_query: mode={mode}, session_id={session_id}, content_length={len(content)}")
     session_info = session_store.get(session_id, {})
@@ -232,34 +203,9 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
             with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp:
                 tmp.write(data)
                 temp_path = tmp.name
-            clip_hits = search_similar_images_by_image(data, session_id, k=3)
-            if not isinstance(clip_hits, list):
-                clip_hits = []
-            valid_hits = [h for h in clip_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
-            results = [
-                {"image_url": h.get("url"), "confidence": h.get("score")}
-                for h in valid_hits
-            ]
-            response_data = {"results": results}
-            if results:
-                logger.info(f"CLIP image search found {len(results)} valid results")
-                if temp_path and os.path.exists(temp_path):
-                    try:
-                        os.remove(temp_path)
-                    except Exception:
-                        pass
-                conf = results[0]["confidence"] if results[0]["confidence"] is not None else 1.0
-                # Save memory and update session
-                save_memory("[image upload]", str(results), session_id)
-                session_store[session_id] = {
-                    "text": raw + f"\nUser: [image upload]\nBot: {results}",
-                    "last_upload_type": "image",
-                    "last_upload_name": last_upload_name
-                }
-                return json.dumps(response_data), float(conf), "image"
             # OCR fallback
-            ocr_text = extract_image_text(temp_path)
-            response_data["ocr_text"] = ocr_text
+            ocr_text = summarize_text_gemini(content, content) # Assuming summarize_text_gemini can handle image text
+            response_data = {"ocr_text": ocr_text}
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
@@ -283,33 +229,6 @@ async def handle_query(mode: str, content: str, session_id: str, lang: str = "en
         pass
     # 3) Text mode: route to image or PDF RAG
     if mode == "text":
-        should_use_image_search = last_upload_type == "image" and _is_image_query(content)
-        logger.info(f"Text mode: should_use_image_search={should_use_image_search}, last_upload_type={last_upload_type}, session_id={session_id}")
-        if should_use_image_search:
-            logger.info(f"Searching images in namespace: {_session_ns('image', session_id)} for session: {session_id}")
-            image_hits = search_text(content, namespace=_session_ns("image", session_id), k=3)
-            logger.info(f"Image search returned {len(image_hits) if isinstance(image_hits, list) else 0} hits: {image_hits}")
-            if not isinstance(image_hits, list):
-                image_hits = []
-            valid_hits = [h for h in image_hits if isinstance(h, dict) and h.get("score", 0) >= 0.2 and "url" in h]
-            logger.info(f"Valid image hits (score >= 0.2): {valid_hits}")
-            if valid_hits:
-                best_hit = max(valid_hits, key=lambda x: x.get("score", 0))
-                response_data = {
-                    "image_url": best_hit.get("url"),
-                    "confidence": best_hit.get("score"),
-                    "description": f"Similar image found for query: '{content}' with confidence: {best_hit.get('score', 0):.2f}"
-                }
-                save_memory(content, str(response_data), session_id)
-                session_store[session_id] = {
-                    "text": raw + f"\nUser: {content}\nBot: {response_data}",
-                    "last_upload_type": last_upload_type,
-                    "last_upload_name": last_upload_name
-                }
-                logger.info(f"Returning image RAG result for session: {session_id}")
-                return json.dumps(response_data), float(best_hit.get("score", 1.0)), "image"
-            logger.info(f"No valid image hits found, falling back to PDF/memory/web for session: {session_id}")
-        # PDF RAG
         combined = f"{raw}\nUser: {content}"
         excerpts, conf, src = query_with_confidence(combined, session_id)
         if conf < MIN_CONFIDENCE:

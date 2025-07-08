@@ -90,103 +90,103 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       if (isFile) {
-        // file branch - upload to /upload endpoint
-        const url = `${getApiBase()}/upload`;
-        console.debug('Uploading to', url, 'file:', input.name, 'size:', input.size);
-        const form = new FormData();
-        form.append('file', input as File);
-        form.append('session_id', sessionId);
-        
-        const res = await fetch(url, { 
-          method: 'POST', 
-          body: form,
-        });
-        
-        if (!res.ok) {
-          const errorMsg = `Upload failed: ${res.status} ${res.statusText}`;
-          setMessages(m => [...m, { role: 'bot', content: errorMsg, ts: Date.now(), error: true }]);
-          setError(errorMsg);
-          setLoading(false);
-          return;
-        }
-        
-        const data = await res.json();
+        // file branch - upload to /upload or /image-analyze endpoint
+        const fileName = (input as File).name.toLowerCase();
+        const data = await sendMessage(sessionId, mode, language, input);
         if (data.error) {
           setMessages(m => [...m, { role: 'bot', content: data.error, ts: Date.now(), error: true }]);
           setError(data.error);
           setLoading(false);
           return;
         }
-        console.debug('Upload response:', data);
-        if (data.session_id) setSessionId(data.session_id);
-        setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
-        
-        // Determine file type and preserve context
-        const fileName = input.name.toLowerCase();
         if (fileName.endsWith('.pdf')) {
+          if (data.session_id) setSessionId(data.session_id);
+          setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
           setLastUploadType('pdf');
-          setMode('text'); // PDF uploads stay in text mode
+          setMode('text');
         } else if (fileName.match(/\.(png|jpg|jpeg|gif|webp)$/)) {
+          // Handle new image RAG response
+          if (data.session_id) setSessionId(data.session_id);
+          let content = '';
+          if (data.caption) {
+            content += `Your uploaded image depicts:\n'${data.caption}'\n`;
+          }
+          if (data.clip_message) {
+            content += `\n${data.clip_message}`;
+          }
+          setMessages(m => [...m, {
+            role: 'bot',
+            content,
+            imageResults: data.similar_images?.map((img: any) => ({
+              imageUrl: img.url,
+              score: img.score
+            })),
+            description: data.caption,
+            ts: Date.now()
+          }]);
           setLastUploadType('image');
-          setMode('image'); // Image uploads switch to image mode for follow-up queries
+          setMode('image');
+        } else {
+          // fallback for other file types
+          setMessages(m => [...m, { role:'bot', content:data.message, ts:Date.now() }]);
+        }
+        return;
+      }
+      // chat branch (streams) - use /chat endpoint
+      // Always use 'text' mode for text queries, even if last upload was image
+      const res = await sendMessage(sessionId, 'text', language, input as string);
+      if (!res.body) return setLoading(false);
+      const source = res.headers.get('X-Source');
+      const sessionIdHeader = res.headers.get('X-Session-ID');
+      if (sessionIdHeader) setSessionId(sessionIdHeader);
+      
+      // Check if response is JSON (image query result or error)
+      const contentType = res.headers.get('Content-Type');
+      if (contentType && contentType.includes('application/json')) {
+        const responseData = await res.json();
+        if (responseData.error) {
+          setMessages(m => [...m, { role: 'bot', content: responseData.error, ts: Date.now(), error: true }]);
+          setError(responseData.error);
+          setLoading(false);
+          return;
+        }
+        // Handle top-N image results
+        if (responseData.results && Array.isArray(responseData.results)) {
+          setMessages(m => [...m, {
+            role: 'bot',
+            content: '',
+            imageResults: responseData.results.map((r: any) => ({
+              imageUrl: r.image_url,
+              score: r.score
+            })),
+            description: responseData.description,
+            source,
+            ts: Date.now()
+          }]);
+        } else {
+          setMessages(m => [...m, {
+            role: 'bot',
+            content: '',
+            description: responseData.description,
+            source,
+            ts: Date.now()
+          }]);
         }
       } else {
-        // chat branch (streams) - use /chat endpoint
-        // Always use 'text' mode for text queries, even if last upload was image
-        const res = await sendMessage(sessionId, 'text', language, input as string);
-        if (!res.body) return setLoading(false);
-        const source = res.headers.get('X-Source');
-        const sessionIdHeader = res.headers.get('X-Session-ID');
-        if (sessionIdHeader) setSessionId(sessionIdHeader);
-        
-        // Check if response is JSON (image query result or error)
-        const contentType = res.headers.get('Content-Type');
-        if (contentType && contentType.includes('application/json')) {
-          const responseData = await res.json();
-          if (responseData.error) {
-            setMessages(m => [...m, { role: 'bot', content: responseData.error, ts: Date.now(), error: true }]);
-            setError(responseData.error);
-            setLoading(false);
-            return;
-          }
-          // Handle top-N image results
-          if (responseData.results && Array.isArray(responseData.results)) {
-            setMessages(m => [...m, {
-              role: 'bot',
-              content: '',
-              imageResults: responseData.results.map((r: any) => ({
-                imageUrl: r.image_url,
-                score: r.score
-              })),
-              description: responseData.description,
-              source,
-              ts: Date.now()
-            }]);
-          } else {
-            setMessages(m => [...m, {
-              role: 'bot',
-              content: '',
-              description: responseData.description,
-              source,
-              ts: Date.now()
-            }]);
-          }
-        } else {
-          // Handle streaming text response
-          setMessages(m => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
-          const reader = res.body.getReader();
-          const dec = new TextDecoder();
-          let done = false;
-          while (!done) {
-            const { value, done: d } = await reader.read();
-            done = d;
-            const chunk = dec.decode(value || new Uint8Array());
-            setMessages(msgs => {
-              const copy = [...msgs];
-              copy[copy.length-1].content += chunk;
-              return copy;
-            });
-          }
+        // Handle streaming text response
+        setMessages(m => [...m, { role: 'bot', content: '', source, ts: Date.now() }]);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let done = false;
+        while (!done) {
+          const { value, done: d } = await reader.read();
+          done = d;
+          const chunk = dec.decode(value || new Uint8Array());
+          setMessages(msgs => {
+            const copy = [...msgs];
+            copy[copy.length-1].content += chunk;
+            return copy;
+          });
         }
       }
     } catch (e: any) {
